@@ -1,5 +1,20 @@
 # Changelog（重建版）
 
+## [3.13.2-recon.15] — 2026-10-12
+
+### 修复：任务模式发送即失败（emit is not a function）
+- 现象：任务模式下发消息，AI 未执行即显示「任务已停止 / AI执行了0次」，并有「大模型调用出现问题」toast
+- 根因：recon.11 重构任务执行器时，后台模式（POST /qa/task/executions，渲染层主链路）以 emit=null 调用，
+  而 track() 内仍是裸调用 `emit(type, data)` → 首条 execution_start 即抛 TypeError → 任务立即失败 →
+  渲染层累积不到 answer_chunk，按 bundle 逻辑把空回复保存为「任务已停止」
+- 修复：track() 空值保护（与 sseEmit 一致）
+
+### 验证（CDP 真机复现，脚本 analysis/tools/repro-task-send.mjs）
+- 修复前：聊天区「任务已停止 / emit is not a function」+ 错误 toast
+- 修复后：POST /chat/sessions/{id}/messages → POST /qa/task/executions → GET …/stream 全 200，
+  聊天区「任务已完成 / AI执行了1次，调用工具0次 / 收到」，0 toast、0 控制台异常
+- 39/39 测试
+
 ## [3.13.2-recon.14] — 2026-10-12
 
 ### 修复：模型调用错误（正则误删路由事故 + 配置未迁移）

@@ -459,3 +459,28 @@ CDP（--remote-debugging-port）取证（analysis/tools/cdp-verify.js）：
 - GET /config：api_key=self / base_url=http://127.0.0.1:18888/v1 / model=self / runtime ✓
 - POST /qa/chat/stream：经 18888 网关真实返回回答 ✓
 - 39/39 测试
+
+## 29. 任务模式发送即失败（emit is not a function）（recon.15，O，2026-10-12）
+
+### 现象
+用户在任务模式下发送消息，AI 未执行任何动作即显示「任务已停止 / AI执行了0次，调用工具0次」，
+并伴随「大模型调用出现问题」toast —— 表现为「安装包不能发送消息」。
+
+### 根因
+recon.11 重构任务执行器时引入：
+
+- POST /qa/task/executions（渲染层的主链路）以**后台模式**调用 runTaskExecution，emit 传 null（只写执行记录）
+- 但 track() 内仍是裸调用 emit(type, data)（未走空值保护的 sseEmit 辅助函数）
+- → 第一条 execution_start 事件即抛 TypeError: emit is not a function → 任务立即失败
+- → 渲染层累积不到任何 answer_chunk，任务收尾按 bundle 逻辑（@~6,167,015，content 为空即写）保存「任务已停止」
+
+### 修复
+track() 改为 if (emit) emit(type, data)（与 sseEmit 一致的空值保护）。
+
+### 验证（CDP 真机复现）
+- 复现脚本 analysis/tools/repro-task-send.mjs：切任务模式 → 输入 → 点发送（aria-label=发送）
+- 修复前：聊天区「任务已停止 / emit is not a function」+ 大模型调用出现问题 toast
+- 修复后：请求链 POST /chat/sessions/{id}/messages → POST /qa/task/executions → GET …/stream 全部 200；
+  聊天区「**任务已完成** / AI执行了1次，调用工具0次 / 收到」，0 toast、0 控制台异常
+- 39/39 测试
+

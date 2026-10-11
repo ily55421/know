@@ -230,7 +230,9 @@ async function runTaskExecution(store, registry, executions, aborts, body, emit,
 
   const track = (type, data) => {
     record.events.push({ type, data });
-    emit(type, data);
+    // [修复] 后台模式（POST /qa/task/executions）emit 为 null，此处必须空值保护——
+    // 曾经的裸调用导致 "emit is not a function"，任务创建即失败（渲染层显示"任务已停止"）
+    if (emit) emit(type, data);
   };
 
   try {
