@@ -91,6 +91,32 @@ analysis/                  REA 证据链
 - 本机 pyenv-win 的 `python` shim 在 **bash/cmd 手动调用**时报错；但 Electron 主进程用 Node `spawn('python')` 会解析到 scoop 的 python.exe（追加 .exe，绕过 .bat shim），故 `npm start` 全链路正常。若需在终端手动跑 `python python/api.py`，请用 `py` 或 scoop python 的完整路径。
 - 数据目录：后端业务数据在项目内 `vector_store/data`（沿用原版开发模式约定）；electron-store 在 `%APPDATA%/KnowlyRecon`；设备 ID 会自动从原版 `%APPDATA%/Knowly` 的历史配置迁移（原版行为保留）。
 
+## 安全与隐私（审计结论）
+
+**重建版默认零云外呼**（审计详见 [analysis/EVIDENCE-LEDGER.md](analysis/EVIDENCE-LEDGER.md) §15）：
+
+- 原版存在常驻遥测：启动/每日活跃统计（设备ID+系统信息 → EMAS）、每小时配额云同步、启动时云端技能/模型同步、**阿里云 RUM 前端监控（采集 API 调用记录、console 错误、用户行为，带设备ID）**、OSS 更新检查。
+- 重建版逐项处置：统计/公告/RUM/更新被原代码守卫天然跳过；云端技能与模型同步由**遥测门**默认关闭（`KNOWLY_ENABLE_TELEMETRY=1` 可恢复原版行为）。
+- 运行时实证：全栈 6 进程 `netstat` 审计 **0 条非回环连接**；唯一对外流量 = 你自定义配置的 OpenAI 兼容端点（经本地代理 28081）。
+
+**自定义 API Key**：设置里配置后经 `后端 → 主进程代理(28081) → 你的端点` 调用；已用本地 Mock 端点实测 Key 传递（Bearer 头）与 SSE 流式回包（台账 §16）。
+
+## 数据存储（版本更新不丢失）
+
+| 数据 | 位置 | 更新/替换程序目录 |
+| --- | --- | --- |
+| 会话/模型配置/任务/Agent/工作目录 | `%APPDATA%\KnowlyRecon\backend-data\` | 保留 |
+| electron-store（deviceId 等） | `%APPDATA%\KnowlyRecon\config.json` | 保留 |
+| 渲染层 localStorage | `%APPDATA%\KnowlyRecon\Local Storage\` | 保留 |
+| 旧版项目内 `vector_store\data\*.json` | 首次启动自动迁入持久区 | 自动保全 |
+
+## 版本发布管理
+
+- 版本方案：`<上游基线>-recon.<n>`（当前 **3.13.2-recon.1**，UI 左下角可见）。
+- 发布：`node scripts/release.cjs patch|minor|major|--set X.Y.Z-recon.N` —— 自动改版本号、插入 CHANGELOG 模板、git commit + tag `v<版本>`。
+- 变更史：[CHANGELOG.md](CHANGELOG.md)。
+- 升级审查：`analysis/` 是原版 v3.13.2 的完整取证基线（全量文件/513 依赖版本/456 条路由），新版发布后重跑 `analysis/tools/` 脚本做增量比对；同机原版运行时（18099/18081）可作端点形态的只读活体参照。
+
 ## 升级参考基线
 
 `analysis/` 是原版 **v3.13.2 的完整取证快照**，后续版本升级审查时可直接复用：

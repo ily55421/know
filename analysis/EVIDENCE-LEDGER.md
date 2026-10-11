@@ -182,6 +182,69 @@ CDP（--remote-debugging-port）取证（analysis/tools/cdp-verify.js）：
 - `analysis/pyz-routes.txt`（456 条后端路由字面量）——API 面变更审计；
 - `analysis/tools/`（asar 提取器、PYZ 路由扫描器、端点提取器、CDP 验收脚本）——对新版安装目录重跑即可产出同口径基线，与本目录结果对比得出增量。
 
+## 15. 数据外发（隐私）审计（O，2026-10-11）
+
+### 15.1 原版（打包运行时）的全部对外行为
+
+逐文件审计主进程源码与渲染层 bundle（证据：`cloud-services.js`、`llm-models-sync.js`、`default-skills-sync.js`、`auto-updater.js`、bundle RUM 初始化片段 @~7,072,941）：
+
+| # | 行为 | 目标 | 载荷 | 触发时机 |
+| --- | --- | --- | --- | --- |
+| 1 | 统计上报 | `fc-mp-…bspapp.com/emas-statistics` | `{userId:设备ID, appVersion, osType, osVersion, timestamp, eventType}` | 启动 + 每小时检查跨天 |
+| 2 | 配额同步 | 云函数 `emas-membership` @ `api.next.bspapp.com` | 设备ID + 配额快照 | 启动 + 每小时（**dev 守卫被原厂注释**） |
+| 3 | 云端技能同步 | 云函数 `emas-skills` | 无设备信息（拉取） | 启动+5s，**无 dev 守卫** |
+| 4 | 云端模型目录同步 | 云函数 `emas-agents` | 无设备信息（拉取） | 启动+5s，**无 dev 守卫** |
+| 5 | 公告拉取 | `emas-statistics` | appVersion/osType | 启动（有 dev 守卫） |
+| 6 | **阿里云 RUM 前端监控** | `ciykalys4u-default-cn.rum.aliyuncs.com` | **API 调用记录（含本地请求 URL/状态）、console 错误、用户行为、userId(设备ID)** | 页面加载（`isDevMode` 守卫跳过） |
+| 7 | 自动更新检查 | `findme-app.oss-cn-beijing.aliyuncs.com` | 标准更新检查 | 打包环境（`isPackaged` 守卫） |
+| 8 | 用户主动 | 反馈提交（含联系方式+内容）、邀请码验证、FAQ 外链 | 用户输入 | 用户操作 |
+
+结论：**原版存在未经选择的常驻遥测（#1、#2、#6 最实质），"偷偷上传"的疑虑成立**；内容限于设备 ID/系统信息/使用行为/API 访问记录，未发现聊天内容上传的证据（聊天文本经本地代理直连模型厂商，RUM 的 api 采集只记 URL/状态码）。
+
+### 15.2 重建版的外发状态（默认零云外呼）
+
+| 行为 | 原版状态 | 重建版处置 | 机制 |
+| --- | --- | --- | --- |
+| 统计上报 | 打包时上传 | 不发生 | 原代码 dev 守卫（`!app.isPackaged → skip`） |
+| 公告拉取 | 打包时拉取 | 不发生 | 原代码 dev 守卫 |
+| RUM 前端监控 | 采集 API/错误/行为 | **不初始化** | 渲染层 `isDevMode` 守卫（`getIsDevMode=true → return`） |
+| 自动更新 | 检查原厂 OSS | 不发生 | `isPackaged` 守卫（且更新源会用原版包覆盖重建版） |
+| 云端技能/模型同步 | 启动外呼云函数 | **不发生** | `[重建版适配]` 遥测门（`app-lifecycle.js`，默认关，`KNOWLY_ENABLE_TELEMETRY=1` 开启） |
+| 配额同步 | 每小时云函数 | 不发生 | 遥测门 + 后端不实现 `/quota-snapshot`（fail-safe 404） |
+| LLM 调用 | 用户配置端点 | 同原版 | 仅连接用户自定义 `base_url`（经本地代理 127.0.0.1:28081） |
+
+**运行时实证**：全栈运行中（electron×4 + node 后端 + python 垫片，6 进程）`netstat` 审计 **0 条非回环 ESTABLISHED 连接**。后端代码自身无任何外呼（`server/` 仅连接 127.0.0.1:28081 代理与用户配置端点）。
+
+### 15.3 已修复的越界写入（观察→修复）
+
+首个数据根实现误用 `app.getPath('userData')`——它在 `app.ready` 前返回 productName 推导的默认值（`Roaming/Knowly`），导致后端数据短暂写入**原版目录**（`Roaming/Knowly/backend-data`，仅本项目自身的 4 个 JSON，未触碰原版 `config.json`；已核实其内容为原版自身 deviceId 且值未变）。已改为镜像 `main.js` 的 `appData/KnowlyRecon` 表达式并清理误写副本。教训入档：userData 相关路径一律显式镜像，不依赖 ready 前的 `getPath('userData')`。
+
+## 16. 自定义 API Key 全链路实测（O，2026-10-11）
+
+链路：`POST /config`（api_key/base_url/model）→ 渲染层/REST 发起对话 → 后端 `llm.js` → 主进程代理 28081（OpenAI SDK）→ 用户端点。
+
+以本地 Mock OpenAI 兼容服务（`analysis/tools/mock-llm.cjs`，:28100）为目标端点验证：
+
+| 步骤 | 结果 |
+| --- | --- |
+| `POST /config` 写入自定义 Key | `{success:true}`，持久化至 KnowlyRecon/backend-data/config.json |
+| `POST /api/test-llm` | Mock 回包原样返回 |
+| `POST /qa/chat/stream` | 3 个 `content` 分片 + `sources` + `complete{answer}`（与渲染层解析器对齐） |
+| `POST /qa/generate-title` | 返回标题 |
+| **Key 传递** | Mock 收到 3 笔请求均为 `Authorization: Bearer test-key-123`（非流式+流式+工具总结轮） |
+
+## 17. 数据持久区与版本安全（O）
+
+| 数据 | 位置 | 版本更新是否丢失 |
+| --- | --- | --- |
+| 后端业务数据（会话/配置/任务/Agent/目录/技能） | `%APPDATA%/KnowlyRecon/backend-data/*.json` | 不丢失（与程序目录解耦） |
+| electron-store（含 deviceId） | `%APPDATA%/KnowlyRecon/config.json` | 不丢失 |
+| 设备 ID 副本 | 项目 `vector_store/data/device_id`（原版开发模式约定） | 丢失时自动从 electron-store 回填 |
+| 渲染层 localStorage | `%APPDATA%/KnowlyRecon/Local Storage` | 不丢失 |
+| 旧项目内 `vector_store/data/*.json` | 后端首次启动自动迁移到新持久区（不覆盖新数据） | 自动保全 |
+
+重建版主进程实改一处（`config.js`）：向子进程注入 `KNOWLY_DATA_ROOT`，指向 `appData/KnowlyRecon/backend-data`；`server/store.js` 惰性解析同名 env 并内置旧数据自动迁移。
+
 
 ## 11. 残余未知清单（U 汇总）
 

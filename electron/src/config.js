@@ -19,11 +19,14 @@ log.info('应用启动中...');
 // 初始化存储
 const store = new Store();
 
-// [重建版适配] 数据持久区：把后端业务数据根目录指到 userData/backend-data
+// [重建版适配] 数据持久区：把后端业务数据根目录指到持久区 backend-data
 // （默认 %APPDATA%/KnowlyRecon/backend-data），与程序目录解耦——
 // 项目更新/替换/重装不会丢会话与配置。后端子进程经环境变量继承（server/store.js）。
+// 注意：这里不使用 app.getPath('userData')——它在 app.ready 前可能仍返回 productName 推导的
+// 默认值（Roaming/Knowly），而 main.js 的 setPath 要到 ready 后才对部分 API 生效；
+// 直接镜像 main.js 的 appData/KnowlyRecon 表达式，两处永远一致。
 process.env.KNOWLY_DATA_ROOT = process.env.KNOWLY_DATA_ROOT
-  || require('path').join(app.getPath('userData'), 'backend-data');
+  || require('path').join(app.getPath('appData'), process.env.KNOWLY_USER_DATA ? require('path').basename(process.env.KNOWLY_USER_DATA) : 'KnowlyRecon', 'backend-data');
 
 // API 基础URL
 // [重建版适配] 端口迁移：原版为 18099，重建版默认 28099，避免与已安装原版冲突；env 可覆盖
