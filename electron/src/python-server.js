@@ -34,34 +34,60 @@ function killResidualPythonProcess() {
   });
 }
 
-// [重建版适配] 进程内后端：便携包内不含 findme.exe，直接在主进程启动 Node 后端（express），
-// 轮询 /health 就绪后回调——对主进程其余流程而言与原版"启动子进程并等就绪"完全同构。
+// [重建版适配] 后端子进程：便携包内不含 findme.exe，用 Electron utilityProcess（自带 Node 运行时）
+// 启动后端——独立进程，不会阻塞/拖垮主进程事件循环（v1 的进程内 require 曾导致主进程卡死）。
 function startInProcessBackend() {
   return new Promise((resolve, reject) => {
     try {
-      process.env.KNOWLY_IN_PROCESS = '1';
-      require('../../server/index.js');
+      const { utilityProcess } = require('electron');
+      const backendEntry = path.join(__dirname, '..', '..', 'server', 'index.js');
+      const dataRoot = process.env.KNOWLY_DATA_ROOT
+        || path.join(path.dirname(app.getPath('exe')), 'data', 'backend');
+      // 清理陈旧后端：杀掉仍监听 28099 的进程（单实例锁保证它只可能是上一实例的孤儿）
+      try {
+        const out = exec('netstat -ano | findstr ":28099" | findstr "LISTENING"', { timeout: 3000 });
+        const pids = [...new Set(out.split(/\r?\n/).map((l) => l.trim().split(/\s+/).pop()).filter((p) => /^\d+$/.test(p) && Number(p) !== process.pid))];
+        for (const pid of pids) {
+          log.info(`[重建版适配] 清理陈旧后端进程 PID=${pid}`);
+          exec(`taskkill /F /T /PID ${pid}`, { timeout: 3000 });
+        }
+      } catch { /* 无占用 */ }
+      const child = utilityProcess.fork(backendEntry, ['--data-root', dataRoot], {
+        serviceName: 'knowly-backend',
+        env: {
+          ...process.env,
+          KNOWLY_IN_PROCESS: '1',
+          KNOWLY_DATA_ROOT: dataRoot,
+          KNOWLY_SHARED_DATA_ROOT: process.env.KNOWLY_SHARED_DATA_ROOT || '',
+          // 注意：不可在此设置 ELECTRON_RUN_AS_NODE —— 会破坏 asar 支持导致子进程立即退出
+        },
+      });
+      child.on('exit', (code) => {
+        log.warn(`[重建版适配] 后端子进程退出，code=${code}`);
+      });
+      child.on('message', (m) => {
+        log.info(`[重建版适配][backend] ${typeof m === 'string' ? m.slice(0, 200) : JSON.stringify(m).slice(0, 200)}`);
+      });
+      const startedAt = Date.now();
+      const timer = setInterval(() => {
+        const req = require('node:http').get(`${API_BASE_URL}/health`, (res) => {
+          res.resume();
+          if (res.statusCode === 200) {
+            clearInterval(timer);
+            log.info(`[重建版适配] 后端子进程已就绪: ${API_BASE_URL}`);
+            resolve(API_BASE_URL);
+          }
+        });
+        req.on('error', () => { /* 未就绪，继续轮询 */ });
+        req.setTimeout(1500, () => req.destroy());
+        if (Date.now() - startedAt > 60000) {
+          clearInterval(timer);
+          reject(new Error('后端子进程启动超时 (60秒)'));
+        }
+      }, 400);
     } catch (error) {
       reject(error);
-      return;
     }
-    const startedAt = Date.now();
-    const timer = setInterval(() => {
-      const req = require('node:http').get(`${API_BASE_URL}/health`, (res) => {
-        res.resume();
-        if (res.statusCode === 200) {
-          clearInterval(timer);
-          log.info(`[重建版适配] 进程内后端已就绪: ${API_BASE_URL}`);
-          resolve(API_BASE_URL);
-        }
-      });
-      req.on('error', () => { /* 未就绪，继续轮询 */ });
-      req.setTimeout(1500, () => req.destroy());
-      if (Date.now() - startedAt > 60000) {
-        clearInterval(timer);
-        reject(new Error('进程内后端启动超时 (60秒)'));
-      }
-    }, 400);
   });
 }
 
@@ -86,32 +112,27 @@ async function startPythonServer() {
       
       // 确定Python可执行文件路径
       let pythonExecutable;
-      
-      if (app.isPackaged) {
-        // 生产环境：使用打包的可执行文件
-        const executableName = process.platform === 'win32' ? 'findme.exe' : 'findme';
-        pythonExecutable = path.join(process.resourcesPath, 'python-server', executableName);
 
-        // 检查可执行文件是否存在
-        if (!fs.existsSync(pythonExecutable)) {
-          // [重建版适配] 便携重建版不含 findme.exe → 在主进程内直接启动 Node 后端
+      // [重建版适配] 判据改为"findme.exe 是否存在"（而非 app.isPackaged）：
+      // 便携重建版（含项目根 Knowly.exe）不含 findme.exe → 一律用进程内 Node 后端，
+      // 不依赖系统 Python；原版安装目录仍走 findme.exe
+      const findmePath = path.join(process.resourcesPath, 'python-server',
+        process.platform === 'win32' ? 'findme.exe' : 'findme');
+      if (fs.existsSync(findmePath)) {
+        // 原版安装目录：使用打包的可执行文件
+        pythonExecutable = findmePath;
+      } else {
+        // 重建版：优先进程内 Node 后端（自包含，无需 Python）
+        const pythonScript = path.join(app.getAppPath(), 'python', 'api.py');
+
+        if (!process.env.KNOWLY_PREFER_PYTHON || !fs.existsSync(pythonScript)) {
           log.info('[重建版适配] 包内无 findme.exe，改用进程内 Node 后端');
           startInProcessBackend().then(resolve).catch(reject);
           return;
         }
-      } else {
-        // 开发环境：使用Python脚本
-        pythonExecutable = process.platform === 'win32' ? 'python' : 'python3';
-        const pythonScript = path.join(app.getAppPath(), 'python', 'api.py');
-
-        
-        if (!fs.existsSync(pythonScript)) {
-          log.error(`Python脚本不存在: ${pythonScript}`);
-          reject(new Error(`Python脚本不存在: ${pythonScript}`));
-          return;
-        }
-        
-        pythonExecutable = [pythonExecutable, pythonScript];
+        // 兼容旧开发流程：python/api.py 存在且显式偏好时走 Python 垫片
+        log.info('[重建版适配] 使用 Python 垫片启动 Node 后端');
+        pythonExecutable = [process.platform === 'win32' ? 'python' : 'python3', pythonScript];
       }
       
       const elapsedBeforeSpawn = ((Date.now() - startTime) / 1000).toFixed(2);

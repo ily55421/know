@@ -21,9 +21,17 @@ const LEGACY_DATA_ROOT = path.join(PROJECT_ROOT, 'vector_store', 'data');
 
 const caches = new Map();
 
-// 惰性解析：测试可在 require 之后再注入 KNOWLY_DATA_ROOT
+// 惰性解析：优先 env（主进程注入）；打包版 env 丢失时从 exe 位置自证
+// （resources/app.asar 存在 → 数据根 = exe 旁 data/backend），最后回退 appdata。
 function dataRootPath() {
-  return process.env.KNOWLY_DATA_ROOT ? path.resolve(process.env.KNOWLY_DATA_ROOT) : path.join(APP_DATA_ROOT, 'backend-data');
+  if (process.env.KNOWLY_DATA_ROOT) return path.resolve(process.env.KNOWLY_DATA_ROOT);
+  try {
+    const exeDir = path.dirname(process.execPath);
+    if (/knowly\.exe$/i.test(process.execPath) && fs.existsSync(path.join(exeDir, 'resources', 'app.asar'))) {
+      return path.join(exeDir, 'data', 'backend');
+    }
+  } catch { /* ignore */ }
+  return path.join(APP_DATA_ROOT, 'backend-data');
 }
 
 /** 一次性迁移：把旧的项目内 vector_store/data 下的 JSON 拷贝到新持久区（不覆盖新数据）。 */

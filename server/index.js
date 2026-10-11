@@ -13,7 +13,15 @@
 
 const express = require('express');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
+
+// [重建版适配] 数据根以命令行参数 --data-root 传入（主进程 utilityProcess fork 保证送达）；
+// 兜底顺序：argv → env → exe 旁 data/backend（store.js 同款自证逻辑）
+const argvRoot = (() => {
+  const i = process.argv.indexOf('--data-root');
+  return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : null;
+})();
+if (argvRoot) process.env.KNOWLY_DATA_ROOT = argvRoot;
+
 const store = require('./store');
 const { ToolRegistry } = require('./tools/registry');
 
@@ -49,18 +57,6 @@ app.use((req, _res, next) => {
 
 const registry = new ToolRegistry();
 store.dataRoot();
-
-require('./routes/system').register(app, { store, registry });
-require('./routes/sessions').register(app, { store });
-require('./routes/qa').register(app, { store, registry });
-require('./routes/tasks').register(app, { store });
-require('./routes/files').register(app, { store });
-require('./routes/apps').register(app, { store });
-
-// 兜底：未知路径按原版 FastAPI 404 形态返回
-app.use((req, res) => {
-  res.status(404).json({ detail: 'Not Found', path: req.path, note: '重建版后端未实现该端点（详见 analysis/EVIDENCE-LEDGER.md）' });
-});
 
 const server = app.listen(PORT, HOST, () => {
   console.log(`INFO:     Started server process [${process.pid}]`);

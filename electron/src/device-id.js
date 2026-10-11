@@ -9,10 +9,16 @@ const DATA_SUBDIR = 'data';
 const STORE_PACKAGE_PREFIX = 'A693CA02.Knowly_';
 
 function getSharedDataRoot() {
-  // [重建版适配] 便携数据根优先（打包版由 main.js 注入 exe 所在目录的 data/）
+  // [重建版适配] 便携数据根：env 优先；打包 exe（resources/app.asar 存在）从 exe 旁 data/ 自证
   if (process.env.KNOWLY_SHARED_DATA_ROOT) {
     return process.env.KNOWLY_SHARED_DATA_ROOT;
   }
+  try {
+    const exeDir = path.dirname(process.execPath);
+    if (/knowly\.exe$/i.test(process.execPath) && fs.existsSync(path.join(exeDir, 'resources', 'app.asar'))) {
+      return path.join(exeDir, 'data');
+    }
+  } catch { /* ignore */ }
   if (!app.isPackaged) {
     return path.join(app.getAppPath(), 'vector_store');
   }

@@ -400,3 +400,36 @@ CDP（--remote-debugging-port）取证（analysis/tools/cdp-verify.js）：
 - 已知限制：本次构建因 win-unpacked/resources/app.asar 被残留进程句柄锁定（EBUSY），
   exe 未内嵌产品图标——桌面快捷方式已携带 favicon.ico 图标；重启后重新构建即可嵌入
 
+## 27. 历史对话切换空白 —— 连环根因与修复（recon.13，O，2026-10-12）
+
+### 根因链（本次排障共 6 层）
+1. **渲染层消息保存契约**：POST /chat/sessions/{id}/messages 的 body 是 `{messages:[数组]}`
+   （一次提交本轮 user+assistant），旧实现按单条 `{role,content}` 解析 → 存下的全是空 user 消息、
+   assistant 从未入库 → 历史切换气泡空白。
+2. **数据根分裂**：开发版用 `%APPDATA%/KnowlyRecon/backend-data`，便携版用 exe 旁 `data/backend`——
+   同一批会话在两个根里反复错位（main.js 迁移源也曾写错目录名）。
+3. **config.js 抢先执行（核心根因）**：main.js 第 4 行 `require('./src/local-image-protocol')`，
+   其内部 `require('./config')` → config.js 在便携化 setPath **之前**执行，用默认 userData(appdata)
+   写死 `process.env.KNOWLY_DATA_ROOT`；后续便携化分支的 `||` 保留了这个错误值。
+4. **app.isPackaged 判据失效**：项目根 Knowly.exe 是重命名 electron.exe，isPackaged 判定不可靠，
+   便携化分支被判为开发环境。改用"exe 是否在 node_modules 内"判据（main / window-manager 同步）。
+5. **utilityProcess 环境传递**：utilityProcess.fork 的 env 不可靠（且严禁设置 `ELECTRON_RUN_AS_NODE`，
+   会导致子进程 code=9 立即退出）→ 数据根改由命令行参数 `--data-root` 传递（必达），
+   并在 fork 前清理占用 28099 的陈旧后端。
+6. **陈旧进程干扰排障**：开发模式的 `electron.exe`（node_modules）＋其 node 后端子进程长期占用 28099，
+   按 Knowly/路径过滤的清理从未命中 → 前端请求一直打到旧后端（解释了反复出现的"修了却无效"）。
+   清理策略更新：按命令行匹配 electron/node/python，而非仅进程名与路径。
+
+### 修复与数据救援
+- 后端消息保存支持数组契约（兼容旧单条）；历史空消息一次性修复（首条以会话标题回填、去重复空条）
+- main.js require 顺序修正（local-image-protocol 延后到便携化块之后）；isPackaged 判据替换
+- 打包形态：electron-builder 单文件 portable 因本机杀毒锁目录重命名（EPERM，3 次重试均失败）
+  无法重建 → 采用**文件夹版绿色安装**（项目根 `Knowly.exe` + `resources/app.asar`，双击独立启动、
+  数据落项目 `data/`）；桌面快捷方式重指到它，旧单文件 exe 改名 `.old-broken`
+
+### 终态验证（真机）
+- `/debug-env`：dataRoot = `E:\data\Knowly\data\backend` ✓
+- `GET /config`：`runtime.max_documents_per_chat = 8` ✓（启动 toast 清零）
+- `GET /chat/sessions/{id}`：历史消息带内容 ✓
+- CDP 点击历史项：气泡渲染"（历史会话）你好，简单介绍一下你自己" ✓
+- 39/39 测试

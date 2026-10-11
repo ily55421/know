@@ -44,6 +44,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@electron/asar": "^4.3.1",
     "electron": "36.7.3",
     "electron-builder": "^26.15.3",
     "pdfkit": "^0.15.1",

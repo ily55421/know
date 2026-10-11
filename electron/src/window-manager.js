@@ -233,7 +233,10 @@ function createWindow() {
   });
 
   // 加载React应用
-  if (app.isPackaged) {
+  // [重建版适配] 判据与 main.js 一致：exe 在 node_modules 内才是开发模式；
+  // 项目根 Knowly.exe（重命名 electron.exe）的 isPackaged 为 false，必须走打包分支
+  const isDevElectron = /node_modules[\\/]electron[\\/]/i.test(process.execPath);
+  if (app.isPackaged || !isDevElectron) {
     // 生产环境：加载打包好的React页面
     win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   } else {

@@ -2,8 +2,25 @@ node_modules/
 vector_store/data/
 data/
 release/
+release*/
+Knowly-Portable.exe.old-broken
 Knowly-Portable.exe
 *.log
 analysis/extracted/
 analysis/tools/node_modules/
 samples/
+
+# Electron 运行时（文件夹版绿色安装产物，不入库）
+resources/
+locales/
+Knowly.exe
+*.pak
+*.dll
+icudtl.dat
+snapshot_blob.bin
+v8_context_snapshot.bin
+version
+LICENSES.chromium.html
+electron.exe
+vk_swiftshader_icd.json
+LICENSE

@@ -108,26 +108,44 @@ function register(app, { store }) {
 
   app.post('/chat/sessions/:sessionId/messages', (req, res) => {
     const body = req.body || {};
-    const message = {
-      role: body.role === 'assistant' ? 'assistant' : 'user',
-      content: String(body.content ?? ''),
-      timestamp: body.timestamp || Date.now(),
-      ...(body.agentName ? { agentName: body.agentName } : {}),
-      ...(body.agentIcon ? { agentIcon: body.agentIcon } : {}),
-      ...(body.sources ? { sources: body.sources } : {}),
-      ...(body.thinkingContent ? { thinkingContent: body.thinkingContent } : {}),
-      ...(body.selected_files ? { selected_files: body.selected_files } : {}),
-    };
+    // 渲染层契约（bundle @~6,134,833）：POST body 为 {messages:[{role,content,timestamp,...}]}
+    // ——一次提交本轮的 user+assistant 数组；兼容旧的 {role,content} 单条形态
+    const incoming = Array.isArray(body.messages)
+      ? body.messages
+      : [{
+          role: body.role === 'assistant' ? 'assistant' : 'user',
+          content: String(body.content ?? ''),
+          timestamp: body.timestamp || Date.now(),
+          ...(body.agentName ? { agentName: body.agentName } : {}),
+          ...(body.agentIcon ? { agentIcon: body.agentIcon } : {}),
+          ...(body.sources ? { sources: body.sources } : {}),
+          ...(body.thinkingContent ? { thinkingContent: body.thinkingContent } : {}),
+          ...(body.selected_files ? { selected_files: body.selected_files } : {}),
+        }];
+    const normalized = incoming
+      .filter((m) => m && typeof m === 'object')
+      .map((m) => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: String(m.content ?? ''),
+        timestamp: m.timestamp || Date.now(),
+        ...(m.agentName ? { agentName: m.agentName } : {}),
+        ...(m.agentIcon ? { agentIcon: m.agentIcon } : {}),
+        ...(m.sources ? { sources: m.sources } : {}),
+        ...(m.thinkingContent ? { thinkingContent: m.thinkingContent } : {}),
+        ...(m.taskSteps ? { taskSteps: m.taskSteps } : {}),
+        ...(m.selected_files ? { selected_files: m.selected_files } : {}),
+      }));
+    if (!normalized.length) return res.json({ success: false, error: '没有可保存的消息' });
     let saved = false;
     store.update('sessions', { items: [] }, (current) => ({
       items: (current.items || []).map((s) => {
         if (s.id !== req.params.sessionId) return s;
         saved = true;
-        return { ...s, messages: [...(s.messages || []), message], updatedAt: Date.now() };
+        return { ...s, messages: [...(s.messages || []), ...normalized], updatedAt: Date.now() };
       }),
     }));
     if (!saved) return res.json({ success: false, error: '会话不存在' });
-    res.json({ success: true, data: message });
+    res.json({ success: true, data: { count: normalized.length, messages: normalized } });
   });
 
   app.delete('/chat/sessions/:sessionId/messages', (req, res) => {

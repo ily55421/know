@@ -320,12 +320,18 @@ async function getAnnouncements() {
     // 在开发环境下不获取公告
     if (!app.isPackaged) {
       log.info('开发环境下不获取公告');
-      return { 
-        success: true, 
+      return {
+        success: true,
         data: [],
         skipped: true,
-        message: '开发环境下不获取公告' 
+        message: '开发环境下不获取公告'
       };
+    }
+
+    // [重建版适配] 遥测门：打包便携版默认不向原厂云端请求公告（避免外呼）
+    if (process.env.KNOWLY_ENABLE_TELEMETRY !== '1') {
+      log.info('[重建版适配] 遥测门：公告拉取已跳过');
+      return { success: true, data: [], skipped: true, message: '重建版遥测门：公告已跳过' };
     }
 
     const appVersion = app.getVersion();
