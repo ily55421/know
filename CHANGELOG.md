@@ -1,5 +1,21 @@
 # Changelog（重建版）
 
+## [3.13.2-recon.10] — 2026-10-11
+
+### 修复：会员中心白屏 + 最高档位会员状态
+- 白屏根因：用量卡 Ee(v.max_total_files) 无空值保护，userStatus 缺会员字段 → React 树整体卸载；
+  bundle 的 Ee 助手已打空值保护补丁（null→'—'）
+- 会员状态（本地重建版自有状态，模型费用由用户自有网关承担，不涉及原厂云端）：
+  **旗舰版（重建版）· 永久有效 · 全能力解锁**——文件/文本/多模态/媒体上限拉满，
+  智能问答额度不限量（is_unlimited），supports_multimodal=true（运行参数面板的视觉能力区随解锁）
+- 补齐端点：GET /user-status（完整会员字段）、GET /llm-quota、GET /membership-plans（三档，旗舰为当前）、
+  GET /get-total-files、POST /verify-offline-activation
+- 验证：会员中心 4 端点全 200、页面完整渲染（root 88,799 字符）、0 控制台异常；39/39 测试
+
+### 验证
+- npm test 通过
+
+
 ## [3.13.2-recon.9] — 2026-10-11
 
 ### 修复：启动报「读取运行参数失败：缺少 max_documents_per_chat」
