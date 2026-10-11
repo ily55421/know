@@ -1,5 +1,26 @@
 # Changelog（重建版）
 
+## [3.13.2-recon.8] — 2026-10-11
+
+### 修复：对话回答展示思考链
+- reasoning 增量始终透传渲染层（问答 thinking_content / 任务 reasoning_chunk，UI 折叠展示）；
+  此前仅 enable_thinking 为真时透传，渲染层未开启即被吞
+- 请求默认携带 enable_thinking:true（经本地代理到模型网关），部分模型据此返回思考增量
+- 真机验证：回答区出现「深度思考」折叠块，0 失败请求
+
+### 修复：应用管理（更多 → 业务应用管理）
+- 补齐整组端点：GET/DELETE/PUT /apps、POST /apps/import、POST /apps/open、GET/PUT /apps/content
+- 导入 HTML 文件或整个文件夹（复制到持久区，入口自动识别 index.html）
+- 「打开」经系统默认浏览器打开入口 HTML
+
+### 新增：预置示例应用
+- 首次启动自动导入 3 个自包含示例：计算器、时钟、待办清单
+- seeded 标记保证删除后不复活；38/38 测试（新增 apps CRUD 全链路用例）
+
+### 验证
+- npm test 通过
+
+
 ## [3.13.2-recon.7] — 2026-10-11
 
 ### 新功能：对话窗口拖拽附件（原版无此能力）
