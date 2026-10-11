@@ -1,5 +1,25 @@
 # Changelog（重建版）
 
+## [3.13.2-recon.9] — 2026-10-11
+
+### 修复：启动报「读取运行参数失败：缺少 max_documents_per_chat」
+- 渲染层启动从 GET /config 校验 runtime.max_documents_per_chat（1..15）等字段；
+  重建版 /config 未内嵌 runtime 对象 → 每次启动必报错
+- GET /config 现返回完整 runtime 默认值（max_iterations=20 / max_documents_per_chat=8 /
+  chat_confidence_threshold=55 / file_search_confidence_threshold=30 / OCR 两开关）
+- POST /config 支持参数面板的扁平保存体（自动归位到 runtime，非法值钳制）
+- 新增 GET /user-status（多面板消费 userStatus 字段）
+- 修复离线模型包面板的 options 形态（需 data.bundles 分组）
+
+### 验证方法补强
+- UI 扫描器新增**界面 toast 捕获**（此前只抓网络层错误，200 响应内的字段校验失败不可见）：
+  现按 error/warning 分类逐页收集
+- 全页复扫：0 失败请求、0 界面错误 toast、0 控制台异常；39/39 测试
+
+### 验证
+- npm test 通过
+
+
 ## [3.13.2-recon.8] — 2026-10-11
 
 ### 修复：对话回答展示思考链
