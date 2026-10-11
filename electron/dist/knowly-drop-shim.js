@@ -132,7 +132,9 @@
 
   // 拖拽悬浮提示（dragover 需持续刷新）
   document.addEventListener('dragover', function (e) {
-    if (!isFileDrag(e) || !hasChatComposer()) return;
+    if (!isFileDrag(e)) return;
+    if (isKnowledgePage()) { e.preventDefault(); showKnowledgeOverlay(); return; }
+    if (!hasChatComposer()) return;
     e.preventDefault(); // 允许 drop
     showOverlay();
   }, false);
@@ -146,18 +148,106 @@
     hideOverlay();
     // 百宝箱等页面自身的 drop 处理（React 已 preventDefault）→ 让位
     if (e.defaultPrevented) return;
-    if (!isFileDrag(e) || !hasChatComposer()) return;
-    e.preventDefault();
-    e.stopPropagation();
-    var dropped = Array.prototype.slice.call(e.dataTransfer && e.dataTransfer.files || []);
-    var paths = dropped.map(pathForFile).filter(Boolean);
-    if (!paths.length) {
-      window.__knowlyDropShim.toast('无法获取拖入文件的本地路径（仅支持本机文件）');
+    if (!isFileDrag(e)) return;
+
+    // 知识库/本地资料学习页：拖入文件或文件夹 → 添加其目录并开始学习
+    if (isKnowledgePage()) {
+      e.preventDefault();
+      e.stopPropagation();
+      var dropped = Array.prototype.slice.call(e.dataTransfer && e.dataTransfer.files || []);
+      var paths = dropped.map(pathForFile).filter(Boolean);
+      if (!paths.length) { toast('无法获取拖入项的本地路径（仅支持本机文件）'); return; }
+      addKnowledgeFolders(paths);
       return;
     }
-    var added = addPaths(paths);
-    window.__knowlyDropShim.toast(added ? '已添加 ' + added + ' 个附件，发送消息时自动附带' : '附件已达上限（' + MAX_FILES + ' 个）或重复');
+
+    if (!hasChatComposer()) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var dropped2 = Array.prototype.slice.call(e.dataTransfer && e.dataTransfer.files || []);
+    var paths2 = dropped2.map(pathForFile).filter(Boolean);
+    if (!paths2.length) {
+      toast('无法获取拖入文件的本地路径（仅支持本机文件）');
+      return;
+    }
+    var added = addPaths(paths2);
+    toast(added ? '已添加 ' + added + ' 个附件，发送消息时自动附带' : '附件已达上限（' + MAX_FILES + ' 个）或重复');
   }, false);
+
+  // ---- 知识库/本地资料学习页支持 ----
+  function isKnowledgePage() {
+    if (document.querySelector('.knowly-learning-workspace, .knowly-learning-manager')) return true;
+    var text = document.body ? document.body.innerText.slice(0, 1500) : '';
+    return /本地资料学习|开始学习|知识库/.test(text) && /添加文件|添加文件夹|添加目录|开始学习/.test(text);
+  }
+
+  function showKnowledgeOverlay() {
+    clearTimeout(overlayTimer);
+    var o = ensureOverlay();
+    o.textContent = '松开鼠标，将文件/文件夹添加为学习资料';
+    o.style.display = 'block';
+    overlayTimer = setTimeout(hideOverlay, 1500);
+  }
+
+  /** 拖入的路径：文件取其所在目录，文件夹直接使用；逐个 POST /directories/add 后自动开始学习 */
+  function addKnowledgeFolders(paths) {
+    var folders = [];
+    paths.forEach(function (p) {
+      var dir = p;
+      var m = p.match(/[\\/]([^\\/]+)$/);
+      var name = m ? m[1] : p;
+      if (name.indexOf('.') !== -1 && !/^\.+$/.test(name)) {
+        dir = p.replace(/[\\/][^\\/]+$/, '');
+      }
+      if (dir && folders.indexOf(dir) === -1) folders.push(dir);
+    });
+    if (!folders.length) { toast('未能解析拖入项所在目录'); return; }
+    var done = 0;
+    var ok = 0;
+    folders.forEach(function (dir) {
+      fetch('http://localhost:28099/directories/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder: dir }),
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        if (j && j.success) { ok += 1; return fetch('http://localhost:28099/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folder: dir }) }); }
+      }).catch(function () { /* 单个失败继续 */ }).finally(function () {
+        done += 1;
+        if (done === folders.length) {
+          if (ok) {
+            toast('已添加 ' + ok + ' 个目录并开始学习，正在刷新列表…');
+            refreshKnowledgePage();
+          } else {
+            toast('添加失败（目录不可读或后端未启动）');
+          }
+        }
+      });
+    });
+  }
+
+  /** 温和刷新：切换页面再切回（重新挂载即重拉目录列表），比整页 reload 体验好 */
+  function clickNav(text) {
+    var els = Array.prototype.slice.call(document.querySelectorAll('*')).filter(function (e) {
+      return e.childElementCount === 0 && e.textContent.trim() === text && e.getBoundingClientRect().height > 0;
+    });
+    var el = els[els.length - 1];
+    if (!el) return false;
+    var t = el, g = 0;
+    while (t && g++ < 8) {
+      t.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      t = t.parentElement;
+    }
+    return true;
+  }
+
+  function refreshKnowledgePage() {
+    setTimeout(function () {
+      if (!clickNav('新建会话')) { location.reload(); return; }
+      setTimeout(function () {
+        if (!clickNav('本地资料学习')) location.reload();
+      }, 600);
+    }, 1200);
+  }
 
   // fetch 包装：发送时合并 selected_files
   var TARGETS = ['/qa/chat/stream', '/qa/task/executions', '/qa/task/stream'];
@@ -202,8 +292,9 @@
 
   // 供测试与高级用法：手动添加附件路径
   window.__knowlyDropShim = {
-    version: '1.0.0',
+    version: '1.1.0',
     add: function (paths) { return addPaths(Array.isArray(paths) ? paths : [paths]); },
+    addKnowledgeFolders: addKnowledgeFolders,
     files: function () { return files.slice(); },
     clear: function () { files = []; renderChips(); },
     toast: toast,

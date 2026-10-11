@@ -296,7 +296,25 @@ function createWindow() {
       win.webContents.send('python-ready', API_BASE_URL);
     }
   });
-  
+
+  // [重建版适配] 定时重发 python-ready：渲染层知识库页等仅在收到该事件后才加载目录列表，
+  // 若用户先进会话页、稍后再切到知识库页，事件已错过会导致目录列表永远为空。
+  // 渲染层对该事件带幂等守卫（只处理一次），重复发送安全无副作用。
+  const readyResendTimer = setInterval(() => {
+    if (win.isDestroyed()) {
+      clearInterval(readyResendTimer);
+      return;
+    }
+    try {
+      const { isPythonServerRunning } = require('./python-server');
+      if (isPythonServerRunning()) {
+        const { API_BASE_URL } = require('./config');
+        win.webContents.send('python-ready', API_BASE_URL);
+      }
+    } catch { /* 窗口销毁竞态忽略 */ }
+  }, 5000);
+  win.on('closed', () => clearInterval(readyResendTimer));
+
   return win;
 }
 

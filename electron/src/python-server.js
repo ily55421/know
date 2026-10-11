@@ -62,6 +62,9 @@ function startInProcessBackend() {
           // 注意：不可在此设置 ELECTRON_RUN_AS_NODE —— 会破坏 asar 支持导致子进程立即退出
         },
       });
+      // [重建版适配] 登记子进程：isPythonServerRunning() 依赖该引用，
+      // 渲染层知识库页等仅在收到 python-ready 后加载数据（缺失会导致目录列表永远为空）
+      pythonProcess = child;
       child.on('exit', (code) => {
         log.warn(`[重建版适配] 后端子进程退出，code=${code}`);
       });

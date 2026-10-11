@@ -25,6 +25,7 @@ function buildApp() {
   require('../server/routes/tasks').register(app, { store });
   require('../server/routes/files').register(app, { store });
   require('../server/routes/apps').register(app, { store });
+  require('../server/routes/knowledge').register(app, { store });
   app.use((req, res) => res.status(404).json({ detail: 'Not Found' }));
   return app;
 }
@@ -498,6 +499,72 @@ test('运行参数契约：GET /config 内嵌 runtime 默认值，POST 扁平字
     const us = await json(base, 'GET', '/user-status');
     assert.equal(us.body.success, true);
     assert.ok(us.body.userStatus, '应含 userStatus');
+  });
+});
+
+test('本地资料学习全链路：目录契约 → 索引 → 进度 → 搜索 → 读全文', async () => {
+  await withServer(async (base) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'knowly-learn-'));
+    fs.mkdirSync(path.join(dir, 'sub'));
+    fs.writeFileSync(path.join(dir, 'risk.md'), '# 项目风险分析\n\n本季度主要风险点：供应链延迟与预算超支。\n', 'utf8');
+    fs.writeFileSync(path.join(dir, 'sub', 'notes.txt'), '会议纪要：讨论知识库与向量检索方案。\n', 'utf8');
+    fs.writeFileSync(path.join(dir, 'pic.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+
+    // 1) 目录添加（渲染层契约：body {folder}）
+    const add = await json(base, 'POST', '/directories/add', { folder: dir });
+    assert.equal(add.body.success, true, JSON.stringify(add.body));
+
+    // 2) 开始学习
+    const idx = await json(base, 'POST', '/index', { folder: dir });
+    assert.equal(idx.body.success, true, idx.body.message);
+
+    // 3) 轮询进度至完成（完成文案需与渲染层正则对齐）
+    let progress = null;
+    for (let i = 0; i < 80; i += 1) {
+      progress = await json(base, 'GET', '/index-progress');
+      if (progress.body.completed) break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    assert.equal(progress.body.completed, true);
+    assert.match(progress.body.status, /学习完成！成功 \d+ 个，失败 \d+ 个，精简 \d+ 个/);
+    assert.equal(progress.body.file_stats.success_count, 2, '两个文本文件应成功');
+    assert.equal(progress.body.file_stats.simplified_count, 1, 'png 应计入精简');
+
+    // 4) 目录列表契约形态（path/indexed/monitoring/last_updated）
+    const dirs = await json(base, 'GET', '/directories');
+    const key = Object.keys(dirs.body.directories).find((k) => k.toLowerCase() === path.resolve(dir).toLowerCase());
+    assert.ok(key, '目录应出现在列表中');
+    const item = dirs.body.directories[key];
+    assert.equal(item.indexed, true);
+    assert.equal(typeof item.monitoring, 'boolean');
+    assert.ok(item.last_updated, '应有 last_updated');
+
+    // 5) 关键词搜索（含 <mark> 高亮与 confidence）
+    const search = await json(base, 'POST', '/search', { query: '风险', folder: 'all' });
+    assert.equal(search.body.success, true);
+    assert.ok(search.body.results.length >= 1, '应命中风险文档');
+    const hit = search.body.results[0];
+    assert.ok(hit.snippet.includes('<mark>'), 'snippet 应含 <mark> 高亮');
+    assert.ok(hit.confidence >= 0 && hit.confidence <= 100);
+    assert.ok(hit.indexed_folder);
+    assert.ok(hit.source);
+
+    // 多关键词 AND
+    const multi = await json(base, 'POST', '/search', { query: '知识库 向量检索', folder: 'all' });
+    assert.ok(multi.body.results.length >= 1, '多关键词 AND 应命中笔记');
+
+    // 6) 读全文（渲染层 /search/file-text 消费 {success, content}）
+    const text = await json(base, 'POST', '/search/file-text', { folder: key, source: path.join(dir, 'risk.md') });
+    assert.equal(text.body.success, true);
+    assert.ok(text.body.content.includes('风险'));
+
+    // 7) 索引总数与清理
+    const total = await json(base, 'GET', '/get-total-files');
+    assert.equal(total.body.currentIndexedFiles, 2);
+    const clean = await json(base, 'POST', '/clean-all-indexes');
+    assert.equal(clean.body.success, true);
+    const total2 = await json(base, 'GET', '/get-total-files');
+    assert.equal(total2.body.currentIndexedFiles, 0);
   });
 });
 

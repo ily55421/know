@@ -32,6 +32,7 @@ function createApp() {
   require('../server/routes/tasks').register(app, { store });
   require('../server/routes/files').register(app, { store });
   require('../server/routes/apps').register(app, { store });
+  require('../server/routes/knowledge').register(app, { store });
   return app;
 }
 

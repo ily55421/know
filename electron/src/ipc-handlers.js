@@ -272,7 +272,21 @@ ipcMain.handle('verify-invite-code', async (event, inviteCode) => {
 });
 
 // 调用云函数的IPC处理
+// [重建版适配] 遥测门关闭（默认）时对会员类云调用返回本地模拟成功：
+// 渲染层知识库页等启动序列为 syncMembershipFromCloud() → check-membership → 拉目录列表，
+// 原厂云端不可达会让该调用抛错并中断后续初始化（表现为目录列表永远为空）。
 ipcMain.handle('call-cloud-function', async (event, functionName, params) => {
+  if (process.env.KNOWLY_ENABLE_TELEMETRY !== '1' && /membership|quota/i.test(String(functionName || ''))) {
+    return {
+      success: true,
+      data: {
+        synced: false,
+        mode: 'local-reconstruction',
+        membership: { level: 'flagship', level_name: '旗舰版（重建版）', is_expired: false, is_permanent: true },
+      },
+      message: '重建版本地会员（未连接云端）',
+    };
+  }
   return await callCloudFunction(functionName, params);
 });
 

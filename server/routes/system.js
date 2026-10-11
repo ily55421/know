@@ -38,7 +38,10 @@ function register(app, { store, registry }) {
 
   app.get('/config', (_req, res) => {
     const stored = store.load('config', {});
-    res.json({ success: true, data: { ...stored, runtime: clampRuntime({ ...RUNTIME_DEFAULTS, ...(stored.runtime || {}) }) } });
+    const runtime = clampRuntime({ ...RUNTIME_DEFAULTS, ...(stored.runtime || {}) });
+    // 双写 runtime：渲染层的运行参数校验/知识库初始化读**顶层** r.runtime；
+    // 三方模型配置面板读 data.*。两者都要满足。
+    res.json({ success: true, data: { ...stored, runtime }, runtime });
   });
 
   app.post('/config', (req, res) => {
@@ -86,10 +89,7 @@ function register(app, { store, registry }) {
     });
   });
 
-  // 已索引文件数（会员中心用量卡，消费顶层 currentIndexedFiles）
-  app.get('/get-total-files', (_req, res) => {
-    res.json({ success: true, currentIndexedFiles: 0 });
-  });
+  // 已索引文件数由 knowledge.js 基于真实索引计算（此处不再占位实现）
 
   // 智能问答额度（会员中心额度卡：is_unlimited → 不限量展示）
   app.get('/llm-quota', (_req, res) => {
@@ -171,32 +171,52 @@ function register(app, { store, registry }) {
     res.json({ success: true, enabled: false });
   });
 
-  // ---- 工作目录（原版由 Python /directories API 管理，见 ipc-handlers.js 注释）
-  // 形态对齐原版：{success, directories: {路径: 信息}} ----
+  // ---- 工作目录（知识库/本地资料学习页契约，bundle @~7,055,765）----
+  // GET /directories → {success, directories: {<abs>: {path, indexed, monitoring, last_updated}}}
+  // 渲染层按 Object.entries 映射为列表项状态，字段名严格对齐
+  const { IndexEngine } = require('../core/indexer');
+  const indexEngine = new IndexEngine(store.dataRoot());
+
   app.get('/directories', (_req, res) => {
-    res.json({ success: true, directories: store.load('directories', { map: {} }).map || {} });
+    const map = store.load('directories', { map: {} }).map || {};
+    const directories = {};
+    for (const [key, item] of Object.entries(map)) {
+      const idx = indexEngine.loadIndex(key);
+      directories[key] = {
+        path: key,
+        indexed: Boolean(idx && (idx.files || []).length),
+        monitoring: Boolean(item && item.monitoring),
+        last_updated: idx ? idx.updated_at : null,
+      };
+    }
+    res.json({ success: true, directories });
   });
   app.post('/directories/add', (req, res) => {
-    const dir = String(req.body?.path || req.body?.directory || '').trim();
+    // 渲染层契约：body {folder}
+    const dir = String(req.body?.folder || req.body?.path || req.body?.directory || '').trim();
     const fs = require('node:fs');
     if (!dir || !fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
-      return res.json({ success: false, error: `目录不存在: ${dir}` });
+      return res.json({ success: false, message: `目录不存在: ${dir}` });
     }
-    const next = store.update('directories', { map: {} }, (current) => {
-      const map = current.map || {};
-      map[dir] = { added_at: Date.now(), enabled: true };
-      return { map };
-    });
-    res.json({ success: true, directories: next.map });
-  });
-  app.post('/directories/remove', (req, res) => {
-    const dir = String(req.body?.path || req.body?.directory || '').trim();
+    const key = path.resolve(dir);
     const next = store.update('directories', { map: {} }, (current) => {
       const map = { ...(current.map || {}) };
-      delete map[dir];
+      map[key] = { path: key, monitoring: map[key]?.monitoring || false, added_at: Date.now() };
       return { map };
     });
-    res.json({ success: true, directories: next.map });
+    void next;
+    res.json({ success: true, directories: { [key]: { path: key } } });
+  });
+  app.delete('/directories/remove', (req, res) => {
+    const dir = String(req.body?.folder || req.body?.path || req.body?.directory || '').trim();
+    const key = path.resolve(dir);
+    const next = store.update('directories', { map: {} }, (current) => {
+      const map = { ...(current.map || {}) };
+      delete map[key];
+      return { map };
+    });
+    void next;
+    res.json({ success: true });
   });
 
   // ---- 模型（形态对齐原版：data.{source_type, llm, embedding, vision}）----

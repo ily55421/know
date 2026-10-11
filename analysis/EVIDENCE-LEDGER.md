@@ -484,3 +484,46 @@ track() 改为 if (emit) emit(type, data)（与 sseEmit 一致的空值保护）
   聊天区「**任务已完成** / AI执行了1次，调用工具0次 / 收到」，0 toast、0 控制台异常
 - 39/39 测试
 
+## 30. 本地资料学习：拖拽支持 + 知识库全链路可用（recon.16，O，2026-10-12）
+
+### 用户诉求
+「本地资料学习」页需要支持直接拖拽文件/文件夹进去（原版仅支持「添加资料」按钮选目录）。
+
+### 本轮修复/实现的 8 层问题（按发现顺序）
+1. **/directories/add 参数名不匹配**：渲染层发 `{folder}`，后端读 `path/directory` → 添加必失败
+2. **/directories/remove 方法不匹配**：渲染层用 DELETE，后端注册 POST
+3. **/directories 响应形态**：渲染层按 `Object.entries(directories)` 映射
+   `{path,indexed,monitoring,last_updated}` → 后端改为同构 map
+4. **GET /config 顶层 runtime 缺失（一石二鸟）**：渲染层运行参数校验读**顶层** `r.runtime`
+   （非 `data.runtime`）→ ① 每次加载弹「读取运行参数失败」② 知识库页初始化
+   `Promise.all([/config,/user-status])` 抛错中断 → 目录列表永不加载。修复：runtime 双写（顶层+data）
+5. **云端会员同步中断启动序列**：知识库页 `onPythonReady → syncMembershipFromCloud() → W() → G()`
+   链中云调用（原厂 EMAS）不可达即抛错，后续拉目录永不执行。修复：主进程 call-cloud-function
+   在遥测门关闭时对 membership/quota 返回**本地模拟成功**（不外呼）
+6. **isPythonServerRunning() 永远为 false**：子进程模式（utilityProcess）从未登记 `pythonProcess`
+   → `python-ready` **从未发送** → 知识库页永不初始化。修复：fork 后登记子进程
+7. **缺 /check-db 与 /monitoring-status**：知识库页每目录状态检查端点 → 补齐
+   （`{exists}` / `{success,is_monitoring,last_updated}`）
+8. **python-ready 只发一次**：用户先进会话页再切知识库页会永久错过该事件 →
+   主进程每 5s 重发（渲染层自带幂等守卫，安全）；另将 /directories 的旧占位实现退化为真实索引判定
+
+### 新增实现（重建版能力）
+- **索引引擎** server/core/indexer.js：遍历目录 → 复用既有文档解析器（txt/md/json/csv/html/docx/pptx/pdf/xlsx，含编码回退）
+  → 存本地索引 `data/backend/index/<hash>.json`；进度状态机与渲染层 /index-progress 契约
+  **严格对齐**（完成文案「学习完成！成功 N 个，失败 N 个，精简 N 个」被渲染层正则解析）
+- **知识库路由** server/routes/knowledge.js：/index、/index-progress、/index-cancel、
+  /clean-all-indexes、/start-monitoring、/stop-monitoring、/search、/search/file-text、
+  /api/dedup/exclude-file、/check-db、/monitoring-status、/get-total-files（真实索引计数）
+- **检索**：关键词全文匹配（多关键词 AND）+ 命中 `<mark>` 高亮片段 + confidence 评分
+  （对齐渲染层 `xmt(e)=confidence??100*(1-score/2)` 与 ≥30% 过滤、按 source 去重、前 50 条）
+  说明：原版为向量语义检索；重建版先提供可用的关键词检索，接口形态完全对齐（诚实降级边界见 §7）
+- **拖拽注入**（knowly-drop-shim 1.1.0）：知识库/本地资料学习页拖入文件/文件夹 →
+  取本地路径（文件取其所在目录）→ POST /directories/add + /index 自动开始学习 →
+  温和刷新（切换页面重挂载，替代整页 reload，避免把用户踢回会话页）
+
+### 终态验证（CDP 真机）
+- 拖拽钩子：POST /directories/add 200 → POST /index 200（自动学习）✓
+- 知识库页目录列表：kb-test / Downloads 均显示「已学习 (时间)」+ 监控/再次学习/查重 操作 ✓
+- 搜索页：输入「风险」→ `POST /search` → 「共 50 条」+ 命中文件 + 匹配度 90% ✓
+  （命中用户 Downloads 中的真实文件；后端 Node 脚本另验证 `<mark>` 高亮与多关键词 AND）
+- 40/40 测试（新增知识库全链路用例：目录契约→索引→进度→搜索→读全文→清理）

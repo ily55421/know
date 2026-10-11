@@ -1,5 +1,27 @@
 # Changelog（重建版）
 
+## [3.13.2-recon.16] — 2026-10-12
+
+### 新功能：本地资料学习支持拖拽 + 知识库全链路可用
+
+- 拖拽注入：本地资料学习/知识库页拖入文件或文件夹 → 自动添加目录并开始学习（温和刷新，不打断会话）
+- 知识库引擎：复用既有文档解析器（txt/md/docx/pptx/pdf/xlsx 等）建立本地索引；进度文案与渲染层正则严格对齐
+- 检索：关键词全文匹配 + <mark> 高亮片段 + confidence 评分（接口形态对齐渲染层；原版为向量语义检索，重建版先关键词版）
+- 补齐 14 个知识库端点中的 11 个（index/progress/cancel/clean/monitoring/search/file-text/check-db/monitoring-status/dedup/get-total-files）
+
+### 修复的 8 层问题（详见台账 §30）
+
+- /directories/add 参数名（folder）、/directories/remove 方法（DELETE）、/directories 响应形态
+- GET /config 顶层 runtime 缺失（导致「读取运行参数失败」toast + 知识库页初始化中断）
+- 云端会员同步中断知识库页启动序列 → 主进程本地模拟成功（不外呼）
+- isPythonServerRunning() 永远 false（子进程未登记）→ python-ready 从未发送 → 目录列表永不加载
+- 补齐 /check-db、/monitoring-status；python-ready 每 5s 重发（修复后进页面错过事件）
+
+### 验证
+- CDP 真机：拖拽添加+自动学习 ✓ 目录列表「已学习」✓ 搜索「风险」共 50 条命中/匹配度 90% ✓
+- 40/40 测试
+
+
 ## [3.13.2-recon.15] — 2026-10-12
 
 ### 修复：任务模式发送即失败（emit is not a function）
