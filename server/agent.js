@@ -158,15 +158,17 @@ async function runChatStream(store, registry, body, res, signal) {
       toolCatalog: registry.catalog().filter((t) => t.name !== 'ask_user'),
     });
 
+    const first = await chatStream(store, {
+      messages,
+      onDelta: ({ reasoning, content }) => {
+        // 思考链始终透传给渲染层（thinking_content），由 UI 折叠展示
+        if (reasoning) sse.send('thinking_content', reasoning);
+        if (content) sse.send('content', content);
+      },
+      signal,
+    });
+    const thinking = first.reasoning || '';
     let answer = '';
-    let thinking = '';
-    const onDelta = ({ reasoning, content }) => {
-      if (reasoning && body.enable_thinking) sse.send('thinking_content', reasoning);
-      if (content) sse.send('content', content);
-    };
-
-    const first = await chatStream(store, { messages, onDelta, signal });
-    thinking = first.reasoning || '';
     const call = extractToolCall(first.content);
 
     if (call) {
@@ -256,7 +258,8 @@ async function runTaskExecution(store, registry, executions, aborts, body, emit,
       messages,
       signal,
       onDelta: ({ reasoning }) => {
-        if (reasoning && body.enable_thinking) {
+        // 思考链始终透传（reasoning_chunk，带 round，由 UI 折叠展示）
+        if (reasoning) {
           sseEmit(emit, 'reasoning_chunk', { round: 1, chunk: reasoning });
           track('reasoning_chunk', { round: 1, chunk: reasoning });
         }

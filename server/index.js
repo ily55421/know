@@ -55,6 +55,7 @@ require('./routes/sessions').register(app, { store });
 require('./routes/qa').register(app, { store, registry });
 require('./routes/tasks').register(app, { store });
 require('./routes/files').register(app, { store });
+require('./routes/apps').register(app, { store });
 
 // 兜底：未知路径按原版 FastAPI 404 形态返回
 app.use((req, res) => {

@@ -24,6 +24,7 @@ function buildApp() {
   require('../server/routes/qa').register(app, { store, registry });
   require('../server/routes/tasks').register(app, { store });
   require('../server/routes/files').register(app, { store });
+  require('../server/routes/apps').register(app, { store });
   app.use((req, res) => res.status(404).json({ detail: 'Not Found' }));
   return app;
 }
@@ -418,6 +419,52 @@ test('拖拽附件：readFileAttachments 文本读取/图片提示/缺失容错'
 
   // 空数组不产生附件块
   assert.equal(readFileAttachments([]), '');
+});
+
+test('应用管理：种子示例 + 导入 + 重命名 + 内容读写 + 删除', async () => {
+  await withServer(async (base) => {
+    // 首次 GET 触发示例种子
+    const seeded = await json(base, 'GET', '/apps');
+    assert.equal(seeded.body.success, true);
+    assert.ok(Array.isArray(seeded.body.data));
+    assert.ok(seeded.body.data.length >= 3, '应预置 3 个示例应用');
+    const sample = seeded.body.data.find((a) => a.name === '示例：计算器');
+    assert.ok(sample, '应包含示例计算器');
+    assert.ok(sample.entry && sample.id);
+
+    // 导入一个 HTML 文件
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'knowly-app-'));
+    const html = path.join(dir, 'hello.html');
+    fs.writeFileSync(html, '<!doctype html><html><body><h1>hello-app-MARK</h1></body></html>', 'utf8');
+    const imported = await json(base, 'POST', '/apps/import', { source_path: html, name: '测试应用' });
+    assert.equal(imported.body.success, true, imported.body.message);
+    const appId = imported.body.data.id;
+    assert.equal(imported.body.data.entry, 'hello.html');
+
+    // 内容读写
+    const content = await json(base, 'GET', `/apps/content?app_id=${appId}&entry=hello.html`);
+    assert.ok(content.body.data.html.includes('hello-app-MARK'));
+    await json(base, 'PUT', '/apps/content', { app_id: appId, entry: 'hello.html', html: '<h1>edited-MARK</h1>' });
+    const content2 = await json(base, 'GET', `/apps/content?app_id=${appId}&entry=hello.html`);
+    assert.ok(content2.body.data.html.includes('edited-MARK'));
+
+    // 重命名
+    await json(base, 'PUT', '/apps', { app_id: appId, name: '改名应用' });
+    const listed = await json(base, 'GET', '/apps');
+    assert.ok(listed.body.data.find((a) => a.id === appId && a.name === '改名应用'));
+
+    // 删除
+    const del = await json(base, 'DELETE', '/apps', { app_id: appId });
+    assert.equal(del.body.success, true);
+    const after = await json(base, 'GET', '/apps');
+    assert.ok(!after.body.data.find((a) => a.id === appId));
+
+    // 删除示例后再次 GET 不应复活（seeded 标记）
+    const delSample = await json(base, 'DELETE', '/apps', { app_id: sample.id });
+    assert.equal(delSample.body.success, true);
+    const again = await json(base, 'GET', '/apps');
+    assert.ok(!again.body.data.find((a) => a.id === sample.id), '示例删除后不应复活');
+  });
 });
 
 test('未实现端点返回 404 且带说明', async () => {

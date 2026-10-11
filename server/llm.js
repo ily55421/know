@@ -40,7 +40,7 @@ function loadModelConfig(store) {
   };
 }
 
-async function chatOnce(store, { messages, temperature = 0.7, maxTokens = 4096 }) {
+async function chatOnce(store, { messages, temperature = 0.7, maxTokens = 4096, enableThinking = true }) {
   const cfg = loadModelConfig(store);
   if (!cfg.api_key || !cfg.base_url || !cfg.model) {
     const error = new Error('未配置大模型：请在应用设置中配置 API Key、Base URL 与模型名');
@@ -55,6 +55,8 @@ async function chatOnce(store, { messages, temperature = 0.7, maxTokens = 4096 }
     stream: false,
     temperature,
     max_tokens: maxTokens,
+    // 思考链：默认向网关请求 reasoning（兼容 OpenAI 格式的端点会忽略未知字段）
+    enable_thinking: enableThinking,
   });
   if (!payload?.success) {
     const error = new Error(payload?.error || '大模型调用失败');
@@ -72,7 +74,7 @@ async function chatOnce(store, { messages, temperature = 0.7, maxTokens = 4096 }
  * 流式对话：走代理的 stream 会话并轮询 /api/stream/read（与原版 Python 端一致）。
  * onDelta 回调拿到每个增量文本块；返回最终全文。
  */
-async function chatStream(store, { messages, temperature = 0.7, maxTokens = 4096, onDelta, signal }) {
+async function chatStream(store, { messages, temperature = 0.7, maxTokens = 4096, onDelta, signal, enableThinking = true }) {
   const cfg = loadModelConfig(store);
   if (!cfg.api_key || !cfg.base_url || !cfg.model) {
     const error = new Error('未配置大模型：请在应用设置中配置 API Key、Base URL 与模型名');
@@ -87,6 +89,7 @@ async function chatStream(store, { messages, temperature = 0.7, maxTokens = 4096
     stream: true,
     temperature,
     max_tokens: maxTokens,
+    enable_thinking: enableThinking,
   });
   if (!started?.success || !started.stream_id) {
     const error = new Error(started?.error || '大模型流式调用失败');

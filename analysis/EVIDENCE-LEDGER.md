@@ -316,3 +316,23 @@ CDP（--remote-debugging-port）取证（analysis/tools/cdp-verify.js）：
   问答模式发送 → 请求体捕获 selected_files=[真实路径] → 模型回答正确引用文件内容（口令命中）
   → 发送后附件条自动清空；37/37 测试（新增 readFileAttachments 单测：utf8/gbk/图片/缺失容错）
 
+## 22. 思考链展示 + 应用管理修复与示例（recon.8，O，2026-10-11）
+
+### 思考链
+- 现象：回答不显示思考过程。根因两处——agent 仅在 body.enable_thinking 为真时透传 reasoning
+  （渲染层未开启即被吞）；且向网关的请求未带 enable_thinking 参数，部分模型不返回 reasoning 增量。
+- 修复：reasoning 增量始终透传（问答 thinking_content / 任务 reasoning_chunk，UI 折叠展示）；
+  chatStream/chatOnce 默认携带 enable_thinking:true（OpenAI 兼容端点会忽略未知字段）。
+- 验证（真机问答模式）：回答区出现「深度思考」折叠块 + 正确答案（9.9 与 9.11 比较），0 失败请求。
+
+### 应用管理
+- 现象：更多 → 业务应用管理 页「加载应用失败」。
+- 根因：缺整组端点。渲染层契约（bundle 反混淆）：GET /apps（列表项 id/name/entry/created_at）、
+  POST /apps/import {source_path,name}、POST /apps/open {app_id}、DELETE /apps {app_id}、
+  PUT /apps {app_id,name,entry}、PUT /apps/content {app_id,entry,html}（在线编辑保存）。
+- 实现：server/routes/apps.js —— 文件/文件夹导入复制到持久区 backend-data/apps/<id>/，
+  文件夹入口自动识别 index.html→首个 .html；open 经系统默认浏览器打开入口文件。
+- 示例：预置 3 个自包含示例应用（计算器/时钟/待办清单），首次启动种子导入，
+  seeded 标记保证用户删除后不复活。
+- 验证：GET /apps 200（3 个示例）、UI 导航 0 失败请求；38/38 测试（新增 apps CRUD 全链路用例）。
+

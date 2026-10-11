@@ -31,6 +31,7 @@ function createApp() {
   require('../server/routes/qa').register(app, { store, registry });
   require('../server/routes/tasks').register(app, { store });
   require('../server/routes/files').register(app, { store });
+  require('../server/routes/apps').register(app, { store });
   return app;
 }
 
