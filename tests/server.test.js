@@ -61,12 +61,12 @@ test('GET /health 返回原版形态 {status:ok}', async () => {
   });
 });
 
-test('GET /tools 列出 16 个原版工具且 file_reader/excel_inspector schema 完整', async () => {
+test('GET /tools 列出 18 个工具且 file_reader/excel_inspector schema 完整', async () => {
   await withServer(async (base) => {
     const { body } = await json(base, 'GET', '/tools');
     assert.equal(body.success, true);
     const names = body.data.tools.map((t) => t.name);
-    for (const expected of ['python_executor', 'file_reader', 'rag_file_reader', 'file_converter', 'image_converter', 'file_searcher', 'excel_inspector', 'file_locator', 'shell_executor', 'env_manager', 'rag_search', 'rag_retriever', 'ask_user', 'run_subagent', 'image_generator', 'compact_context']) {
+    for (const expected of ['python_executor', 'file_reader', 'rag_file_reader', 'file_converter', 'image_converter', 'file_searcher', 'excel_inspector', 'file_locator', 'shell_executor', 'env_manager', 'rag_search', 'rag_retriever', 'ask_user', 'run_subagent', 'image_generator', 'compact_context', 'image_reader', 'file_batch_rename']) {
       assert.ok(names.includes(expected), `缺少工具 ${expected}`);
     }
     const fr = body.data.tools.find((t) => t.name === 'file_reader');
@@ -76,6 +76,84 @@ test('GET /tools 列出 16 个原版工具且 file_reader/excel_inspector schema
     const ei = body.data.tools.find((t) => t.name === 'excel_inspector');
     assert.equal(ei.display_name, 'Excel结构分析');
     assert.equal(ei.parameters.properties.analysis_depth.default, 'standard');
+    // file_converter 已升级为真实实现（不再返回"未实现"）
+    const fc = body.data.tools.find((t) => t.name === 'file_converter');
+    assert.ok(fc.parameters.properties.target_format, 'file_converter 应有 target_format 参数');
+  });
+});
+
+test('LibreOffice 自动探测（env→PATH→注册表→标准路径）', async () => {
+  await withServer(async (base) => {
+    const { body } = await json(base, 'GET', '/api/libreoffice/status');
+    assert.equal(body.success, true);
+    assert.equal(body.data.found, true, '本机装有 LibreOffice，应能探测到');
+    assert.ok(/soffice(\.exe)?$/.test(body.data.path), '应指向 soffice 可执行文件');
+    assert.ok(body.data.source, '应记录探测来源');
+  });
+});
+
+test('file_converter 真实转换（LibreOffice 无头 txt→pdf）', async () => {
+  await withServer(async (base) => {
+    const st = await json(base, 'GET', '/api/libreoffice/status');
+    if (!st.body.data.found) return; // 未装 LibreOffice 的环境跳过
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'knowly-convert-'));
+    const src = path.join(dir, 'demo.txt');
+    fs.writeFileSync(src, '重建版格式转换测试 LibreOffice converter', 'utf8');
+    const { body } = await json(base, 'POST', '/tools/file_converter', {
+      file_path: src, target_format: 'pdf', timeout: 180,
+    });
+    assert.equal(body.success, true, JSON.stringify(body.error || ''));
+    assert.ok(fs.existsSync(body.result.output_path), '应生成 pdf');
+    assert.ok(body.result.size > 100);
+  });
+});
+
+test('文件批量重命名：dry_run 预览 + 执行 + 冲突防护', async () => {
+  await withServer(async (base) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'knowly-rename-'));
+    fs.writeFileSync(path.join(dir, 'a.txt'), '1');
+    fs.writeFileSync(path.join(dir, 'b.txt'), '2');
+
+    const dry = await json(base, 'POST', '/tools/file_batch_rename', { folder: dir, mode: 'prefix', prefix: '2026-' });
+    assert.equal(dry.body.success, true);
+    assert.equal(dry.body.result.dry_run, true);
+    assert.equal(dry.body.result.would_rename, 2);
+    assert.ok(fs.existsSync(path.join(dir, 'a.txt')), 'dry_run 不应实际改名');
+
+    const run = await json(base, 'POST', '/tools/file_batch_rename', { folder: dir, mode: 'prefix', prefix: '2026-', dry_run: false });
+    assert.equal(run.body.result.renamed, 2);
+    assert.ok(fs.existsSync(path.join(dir, '2026-a.txt')));
+    assert.ok(!fs.existsSync(path.join(dir, 'a.txt')));
+
+    const seq = await json(base, 'POST', '/tools/file_batch_rename', { folder: dir, mode: 'sequence', base_name: '报告', start_index: 1, dry_run: false });
+    assert.equal(seq.body.success, true);
+    assert.ok(fs.existsSync(path.join(dir, '报告-001.txt')));
+    assert.ok(fs.existsSync(path.join(dir, '报告-002.txt')));
+  });
+});
+
+test('数据备份导出/导入往返（对齐上游 v3.12.6）', async () => {
+  await withServer(async (base) => {
+    // 先有配置与会话，再导出，保证备份包覆盖要验证的文件
+    await json(base, 'POST', '/config', { keep: 'v1' });
+    await json(base, 'POST', '/chat/sessions', { title: '备份测试' });
+    const backup = path.join(os.tmpdir(), `knowly-backup-${Date.now()}-${process.pid}.zip`);
+    const exp = await json(base, 'POST', '/api/backup/export', { target_path: backup });
+    assert.equal(exp.body.success, true, exp.body.error);
+    assert.ok(exp.body.data.files.includes('sessions.json'));
+    assert.ok(exp.body.data.files.includes('config.json'));
+    assert.ok(fs.existsSync(backup));
+
+    await json(base, 'POST', '/config', { marker: '导入前的新值' });
+    const imp = await json(base, 'POST', '/api/backup/import', { source_path: backup });
+    assert.equal(imp.body.success, true, imp.body.error);
+    assert.ok(imp.body.data.imported.includes('config.json'));
+
+    // 导入后配置回滚为备份时状态（marker 不存在），说明 clearCache 生效
+    const cfg = await json(base, 'GET', '/config');
+    assert.equal(cfg.body.data.marker, undefined);
+    assert.equal(cfg.body.data.keep, 'v1');
+    fs.unlinkSync(backup);
   });
 });
 

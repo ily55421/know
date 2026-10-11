@@ -2,6 +2,7 @@
 
 /** 系统与配置路由：/health /version /config /cache /directories /api/models /scheduler 通知等。 */
 const os = require('node:os');
+const path = require('node:path');
 const { chatOnce } = require('../llm');
 
 const APP_VERSION = '3.13.2';
@@ -177,6 +178,59 @@ function register(app, { store, registry }) {
   // 定时任务清单（原版在线观测：GET /scheduler/tasks → {success, data:[...]})
   app.get('/scheduler/tasks', (_req, res) => {
     res.json({ success: true, data: store.load('tasks', { items: [] }).items || [] });
+  });
+
+  // ---- LibreOffice 探测状态（file_converter 依赖）----
+  app.get('/api/libreoffice/status', (_req, res) => {
+    const { detectSoffice } = require('../core/libreoffice');
+    const info = detectSoffice();
+    res.json({ success: true, data: info });
+  });
+
+  // ---- 全量数据备份 / 恢复（对齐上游 v3.12.6，jszip 打包后端持久区 JSON）----
+  app.post('/api/backup/export', async (req, res) => {
+    try {
+      const fs = require('node:fs');
+      const target = String(req.body?.target_path || '').trim();
+      if (!target) return res.json({ success: false, error: '缺少 target_path' });
+      const JSZip = require('jszip');
+      const root = store.dataRoot();
+      const zip = new JSZip();
+      const files = fs.readdirSync(root).filter((f) => f.endsWith('.json'));
+      for (const f of files) zip.file(f, fs.readFileSync(path.join(root, f), 'utf8'));
+      const buf = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, buf);
+      res.json({ success: true, data: { file: target, size: buf.length, files } });
+    } catch (error) {
+      res.json({ success: false, error: error.message });
+    }
+  });
+
+  app.post('/api/backup/import', async (req, res) => {
+    try {
+      const fs = require('node:fs');
+      const source = String(req.body?.source_path || '').trim();
+      if (!source || !fs.existsSync(source)) {
+        return res.json({ success: false, error: `备份包不存在: ${source}` });
+      }
+      const JSZip = require('jszip');
+      const zip = await JSZip.loadAsync(fs.readFileSync(source));
+      const entries = Object.keys(zip.files).filter((f) => f.endsWith('.json') && !zip.files[f].dir);
+      if (!entries.length) return res.json({ success: false, error: '备份包中没有可导入的 JSON 数据' });
+      const root = store.dataRoot();
+      const imported = [];
+      for (const name of entries) {
+        // 防路径穿越：只允许纯文件名
+        if (name.includes('/') || name.includes('\\')) continue;
+        fs.writeFileSync(path.join(root, name), await zip.files[name].async('nodebuffer'));
+        imported.push(name);
+      }
+      store.clearCache();
+      res.json({ success: true, data: { imported, restored_from: source } });
+    } catch (error) {
+      res.json({ success: false, error: `导入失败: ${error.message}` });
+    }
   });
 
   // ---- 技能 / MCP / 自定义 Agent ----

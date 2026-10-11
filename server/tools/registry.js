@@ -62,13 +62,6 @@ const STUB_TOOLS = [
     parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
   },
   {
-    name: 'file_converter',
-    display_name: '文件格式转换',
-    category: 'file_operation',
-    description: '在 .docx/.pptx/.pdf/txt 等格式间转换（重建版未实现）',
-    parameters: { type: 'object', properties: { file_path: { type: 'string' }, target_format: { type: 'string' } }, required: ['file_path', 'target_format'] },
-  },
-  {
     name: 'image_converter',
     display_name: '图片格式转换',
     category: 'file_operation',
@@ -202,6 +195,73 @@ class ToolRegistry {
       }),
       implemented: false,
     });
+
+    // ---- 上游能力对齐（CHANGELOG：v3.12.4 批量重命名 / v3.12.6 数据备份 / v3.14.0 image-reader）----
+    this.tools.set('file_converter', {
+      meta: {
+        name: 'file_converter',
+        display_name: '文件格式转换',
+        description: '经本机 LibreOffice（自动探测安装路径）无头转换：docx/pptx/xlsx/txt/html → pdf/txt/html/rtf/docx/odt/xlsx/csv/ods/pptx/odp 等',
+        category: 'file_operation',
+        parameters: {
+          type: 'object',
+          properties: {
+            file_path: { type: 'string', description: '待转换文件路径' },
+            target_format: { type: 'string', description: '目标格式：pdf/txt/html/rtf/docx/odt/xlsx/csv/ods/pptx/odp' },
+            out_dir: { type: 'string', description: '输出目录（默认源文件所在目录）' },
+            timeout: { type: 'integer', description: '超时秒数，默认 120' },
+          },
+          required: ['file_path', 'target_format'],
+        },
+      },
+      execute: (params) => this.executeFileConverter(params),
+      implemented: true,
+    });
+
+    this.tools.set('image_reader', {
+      meta: {
+        name: 'image_reader',
+        display_name: '图片阅读',
+        description: '用视觉模型直接阅读本地图片并回答问题（对齐上游 v3.14.0 image-reader；需配置支持视觉的模型）',
+        category: 'file_operation',
+        parameters: {
+          type: 'object',
+          properties: {
+            file_path: { type: 'string', description: '图片路径（png/jpg/jpeg/webp/gif/bmp）' },
+            question: { type: 'string', description: '想问关于这张图的问题（默认：详细描述图片内容）' },
+          },
+          required: ['file_path'],
+        },
+      },
+      execute: (params) => this.executeImageReader(params),
+      implemented: true,
+    });
+
+    this.tools.set('file_batch_rename', {
+      meta: {
+        name: 'file_batch_rename',
+        display_name: '文件批量重命名',
+        description: '对目录内文件批量重命名：支持前缀/后缀/查找替换/序号模式，默认 dry_run 预览（对齐上游 v3.12.4 百宝箱批量重命名）',
+        category: 'file_operation',
+        parameters: {
+          type: 'object',
+          properties: {
+            folder: { type: 'string', description: '目标目录' },
+            mode: { type: 'string', description: 'rename 模式：prefix/suffix/replace/sequence' },
+            prefix: { type: 'string', description: 'prefix 模式：文件名前缀' },
+            suffix: { type: 'string', description: 'suffix 模式：扩展名前的后缀' },
+            find: { type: 'string', description: 'replace 模式：要查找的子串' },
+            replace_to: { type: 'string', description: 'replace 模式：替换为（可为空）' },
+            base_name: { type: 'string', description: 'sequence 模式：新名基础，如 "报告" → 报告-001.jpg' },
+            start_index: { type: 'integer', description: 'sequence 模式起始序号，默认 1' },
+            dry_run: { type: 'boolean', description: '只预览不执行（默认 true）' },
+          },
+          required: ['folder', 'mode'],
+        },
+      },
+      execute: (params) => this.executeBatchRename(params),
+      implemented: true,
+    });
   }
 
   registerClass(ToolClass) {
@@ -309,6 +369,191 @@ class ToolRegistry {
           error: error ? `执行出错: ${error.message}` : null,
         }));
       });
+    });
+  }
+
+  /** 文件格式转换（LibreOffice 无头，自动探测安装路径） */
+  async executeFileConverter(params) {
+    const { execFile } = require('node:child_process');
+    const { detectSoffice, sofficeArgs } = require('../core/libreoffice');
+    const fs = require('node:fs');
+
+    const soffice = detectSoffice();
+    if (!soffice.found) {
+      return envelope({
+        success: false,
+        error: '未找到本机 LibreOffice（已探测 env KNOWLY_SOFFICE_PATH → PATH → 注册表 → 标准路径）。'
+          + '请安装 LibreOffice 或设置 KNOWLY_SOFFICE_PATH 指向 soffice.exe',
+        metadata: { searched: soffice.searched },
+      });
+    }
+
+    const src = path.resolve(String(params.file_path || ''));
+    const fmt = String(params.target_format || '').trim().toLowerCase().replace(/^\./, '');
+    const ALLOWED = new Set(['pdf', 'txt', 'html', 'rtf', 'docx', 'odt', 'xlsx', 'csv', 'ods', 'pptx', 'odp']);
+    if (!src || !fs.existsSync(src) || !fs.statSync(src).isFile()) {
+      return envelope({ success: false, error: `文件不存在: ${src}` });
+    }
+    if (!ALLOWED.has(fmt)) {
+      return envelope({ success: false, error: `不支持的目标格式: ${fmt}。支持：${[...ALLOWED].join('/')}` });
+    }
+    const outDir = params.out_dir ? path.resolve(String(params.out_dir)) : path.dirname(src);
+    if (!fs.existsSync(outDir) || !fs.statSync(outDir).isDirectory()) {
+      return envelope({ success: false, error: `输出目录不存在: ${outDir}` });
+    }
+    // 同名目标文件先移走，避免 LibreOffice 因已存在而跳过
+    const base = path.basename(src, path.extname(src));
+    const expected = path.join(outDir, `${base}.${fmt}`);
+    const clash = path.join(outDir, `冲突-${Date.now()}-${base}.${fmt}`);
+    let prevClash = null;
+    if (fs.existsSync(expected)) {
+      prevClash = clash;
+      fs.renameSync(expected, clash);
+    }
+
+    const timeoutSec = Math.min(Math.max(Number(params.timeout) || 120, 5), 600);
+    return new Promise((resolve) => {
+      const args = [...sofficeArgs(), '--headless', '--norestore', '--convert-to', fmt, '--outdir', outDir, src];
+      execFile(soffice.path, args, { timeout: timeoutSec * 1000, windowsHide: true }, (error, stdout, stderr) => {
+        if (!fs.existsSync(expected)) {
+          // 还原被移走的旧文件
+          if (prevClash) { try { fs.renameSync(prevClash, expected); } catch { /* ignore */ } }
+          return resolve(envelope({
+            success: false,
+            error: `转换失败：未生成 ${path.basename(expected)}。${(stderr || error?.message || stdout || '').toString().slice(0, 300)}`,
+            metadata: { soffice: soffice.path, source: soffice.source },
+          }));
+        }
+        if (prevClash) { try { fs.unlinkSync(prevClash); } catch { /* ignore */ } }
+        resolve(envelope({
+          success: true,
+          result: {
+            output_path: expected,
+            format: fmt,
+            size: fs.statSync(expected).size,
+            source_file: src,
+          },
+          metadata: { soffice: soffice.path, source: soffice.source, versionHint: soffice.versionHint },
+        }));
+      });
+    });
+  }
+
+  /** 图片阅读（视觉模型，经本地代理） */
+  async executeImageReader(params) {
+    const fs = require('node:fs');
+    const { chatOnce } = require('../llm');
+    const src = path.resolve(String(params.file_path || ''));
+    const OK_EXT = /\.(png|jpe?g|webp|gif|bmp)$/i;
+    if (!src || !fs.existsSync(src) || !fs.statSync(src).isFile()) {
+      return envelope({ success: false, error: `图片不存在: ${src}` });
+    }
+    if (!OK_EXT.test(src)) {
+      return envelope({ success: false, error: `不支持的图片格式: ${path.extname(src) || '(无扩展名)'}` });
+    }
+    const size = fs.statSync(src).size;
+    if (size > 20 * 1024 * 1024) {
+      return envelope({ success: false, error: `图片过大（${Math.round(size / 1024 / 1024)}MB > 20MB）` });
+    }
+    const mime = /\.png$/i.test(src) ? 'image/png'
+      : /\.jpe?g$/i.test(src) ? 'image/jpeg'
+        : /\.webp$/i.test(src) ? 'image/webp'
+          : /\.gif$/i.test(src) ? 'image/gif' : 'image/bmp';
+    const dataUrl = `data:${mime};base64,${fs.readFileSync(src).toString('base64')}`;
+    const question = String(params.question || '请详细描述这张图片的内容。如有文字请转录，如有表格请转成 Markdown。');
+    try {
+      const store = require('../store');
+      const result = await chatOnce(store, {
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: question },
+            { type: 'image_url', image_url: { url: dataUrl } },
+          ],
+        }],
+      });
+      return envelope({ success: true, result: { answer: result.content, image: src, size }, metadata: { model: 'user-configured' } });
+    } catch (error) {
+      return envelope({
+        success: false,
+        error: error.code === 'LLM_NOT_CONFIGURED'
+          ? '未配置模型：请在应用设置中配置支持视觉的模型（API Key/Base URL/模型名）后使用图片阅读'
+          : `视觉模型调用失败: ${error.message}`,
+      });
+    }
+  }
+
+  /** 文件批量重命名（dry_run 预览默认开启） */
+  async executeBatchRename(params) {
+    const fs = require('node:fs');
+    const folder = path.resolve(String(params.folder || ''));
+    const mode = String(params.mode || '');
+    const dryRun = params.dry_run !== false;
+    if (!fs.existsSync(folder) || !fs.statSync(folder).isDirectory()) {
+      return envelope({ success: false, error: `目录不存在: ${folder}` });
+    }
+    if (!['prefix', 'suffix', 'replace', 'sequence'].includes(mode)) {
+      return envelope({ success: false, error: 'mode 必须是 prefix/suffix/replace/sequence' });
+    }
+    if (mode === 'replace' && params.find === undefined) {
+      return envelope({ success: false, error: 'replace 模式需要 find 参数' });
+    }
+    if (mode === 'sequence' && !String(params.base_name || '').trim()) {
+      return envelope({ success: false, error: 'sequence 模式需要 base_name 参数' });
+    }
+
+    const files = fs.readdirSync(folder, { withFileTypes: true })
+      .filter((e) => e.isFile() && !e.name.startsWith('.'))
+      .map((e) => e.name)
+      .sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+    if (!files.length) return envelope({ success: false, error: '目录中没有文件' });
+
+    let index = Math.max(Number(params.start_index) || 1, 1);
+    const plan = [];
+    const used = new Set();
+    for (const name of files) {
+      const ext = path.extname(name);
+      const stem = name.slice(0, name.length - ext.length);
+      let next;
+      if (mode === 'prefix') next = String(params.prefix || '') + name;
+      else if (mode === 'suffix') next = stem + String(params.suffix || '') + ext;
+      else if (mode === 'replace') next = name.split(String(params.find)).join(String(params.replace_to ?? ''));
+      else next = `${String(params.base_name)}-${String(index).padStart(3, '0')}${ext}`;
+      if (next === name || used.has(next) || (next !== name && fs.existsSync(path.join(folder, next)))) {
+        used.add(next);
+        if (next === name) continue; // 无变化
+        plan.push({ from: name, to: next, conflict: true, renamed: false });
+        index += 1;
+        continue;
+      }
+      used.add(next);
+      plan.push({ from: name, to: next, renamed: false });
+      index += 1;
+    }
+    const actionable = plan.filter((p) => p.from !== p.to && !p.conflict);
+
+    if (dryRun) {
+      return envelope({
+        success: true,
+        result: { dry_run: true, total: files.length, would_rename: actionable.length, plan, folder },
+      });
+    }
+    const renamed = [];
+    const failed = [];
+    for (const item of actionable) {
+      try {
+        fs.renameSync(path.join(folder, item.from), path.join(folder, item.to));
+        item.renamed = true;
+        renamed.push(item);
+      } catch (error) {
+        item.error = error.message;
+        failed.push(item);
+      }
+    }
+    return envelope({
+      success: failed.length === 0,
+      result: { dry_run: false, total: files.length, renamed: renamed.length, failed: failed.length, plan, folder },
+      error: failed.length ? `${failed.length} 个重命名失败` : null,
     });
   }
 }

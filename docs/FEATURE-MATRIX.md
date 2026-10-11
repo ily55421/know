@@ -1,19 +1,37 @@
-# 功能齐全度矩阵（重建版 3.13.2-recon.1 vs 原版 v3.13.2）
+# 功能齐全度矩阵（重建版 3.13.2-recon.3 vs 原版 v3.13.2 + 上游更新对齐）
 
 图例：✅ 完整实现 · 🟡 简化实现（可用，语义对齐但非逐字还原）· ⛔ 诚实降级（返回说明性错误，不伪造结果）· ➖ 原版功能，依赖云端/模型服务
 
-## 1. 工具层（原版 16 工具）
+## 0. 上游更新对齐（按原版 CHANGELOG，截图清单）
+
+| 上游版本 | 能力 | 重建版处置 |
+| --- | --- | --- |
+| v3.14.0 | image-reader：AI 直接阅读图片 | ✅ `image_reader` 工具（视觉模型经本地代理，需配置支持视觉的模型） |
+| v3.14.0 | 百宝箱工具全部暴露给 Agent | 🟡 本轮新增工具已入注册表，Agent 可经 tool_call 调用 |
+| v3.13.0 | AI 像读 txt 一样读取 office 文件 | ✅ file_reader（docx/pptx/xlsx/pdf 完整解析，基线已实现） |
+| v3.12.6 | 软件全量数据备份和迁移 | ✅ `/api/backup/export|import`（jszip 打包持久区，导入自动刷新缓存） |
+| v3.12.4 | 文件批量重命名 | ✅ `file_batch_rename`（前缀/后缀/替换/序号，dry_run 预览默认开） |
+| v3.12.4/3.12.6 | word 一键排版/公众号排版/小红书图文 | ⛔ 依赖原版模板引擎 |
+| v3.12.7 | 图片去水印/打码、word/pdf 去水印 | ⛔ 依赖原版图像模型 |
+| v3.14.0/3.13.2 | 关键词+语义混合检索、知识库术语、动态上下文压缩 | ⛔ 依赖向量索引（原版 Python 服务） |
+| v3.13.0 | 离线模型包 / OCR 并发 | ⛔ 依赖原版模型服务 |
+| 本轮新增 | **文件格式转换（LibreOffice）** | ✅ `file_converter` 真实实现：自动探测安装路径（env→PATH→注册表→标准路径），无头转换 + 独立配置目录防冲突 |
+
+## 1. 工具层（原版 16 工具 + 上游对齐新增 2 个）
 
 | 工具 | 显示名 | 状态 | 说明 |
 | --- | --- | --- | --- |
 | file_reader | 文件内容读取 | ✅ | read/find/inspect + 游标续读，反汇编契约逐字还原，22 项原契约测试 |
 | excel_inspector | Excel结构分析 | ✅ | 表头层级/合并单元格/公式/样式/隐藏行列等，原契约测试通过 |
+| file_converter | 文件格式转换 | ✅ | **LibreOffice 无头转换（recon.3）**：自动探测 soffice（env/PATH/注册表/标准路径），支持 pdf/txt/html/rtf/docx/odt/xlsx/csv/ods/pptx/odp |
+| image_reader | 图片阅读（上游新增） | 🟡 | 视觉模型经本地代理读图；需配置支持视觉的模型，未配置时明确提示 |
+| file_batch_rename | 文件批量重命名（上游新增） | ✅ | prefix/suffix/replace/sequence 四模式 + dry_run 预览 + 冲突防护 |
 | file_searcher | 文件搜索 | 🟡 | 文件名递归搜索（通配/子串），原版 schema 未逐字还原 |
 | shell_executor | 本地命令执行 | 🟡 | 真实执行（cmd/sh，cwd 限定工作区） |
 | python_executor | 代码执行 | 🟡 | 调系统 python -c 执行 |
 | ask_user | 询问用户 | ⛔ | 原版经任务执行流等待输入；重建版返回提示 |
 | rag_file_reader / rag_search / rag_retriever | 向量库读取/语义搜索/检索 | ⛔ | 依赖向量索引（原版 Python 服务内建） |
-| file_converter / image_converter | 文件/图片格式转换 | ⛔ | 原版转换管线未还原 |
+| image_converter | 图片格式转换 | ⛔ | 原版转换管线未还原（部分场景可用 file_converter 替代） |
 | image_generator | AI生成图片 | ⛔ | 依赖生图模型 |
 | file_locator | 文件定位 | ⛔ | 可用 file_searcher 替代 |
 | env_manager | 环境管理 | ⛔ | 依赖原版执行环境体系 |
@@ -42,6 +60,8 @@
 | /scheduler/*（tasks/enabled-count/notifications）、/tasks CRUD | ✅（调度器简化：仅记录，不真实 cron） |
 | /api/directory-stats/*、/files/create_folder、/export/cancel | ✅ |
 | /api/toolbox/*（图像修复/公众号导入/图片去隐私） | ⛔ 依赖原版模型服务 |
+| /api/backup/export·import（全量备份/恢复） | ✅ jszip 打包持久区，导入后自动刷新缓存 |
+| /api/libreoffice/status（安装探测） | ✅ env→PATH→注册表→标准路径 |
 | /files/upload*、/upload/*（分片上传，手机远程/知识库导入） | ⛔ |
 | /export/xmind、/qa/diagram/regenerate | ⛔ |
 | /api/ollama/*（本地模型管理）、/api/offline-pack/* | ⛔ |

@@ -253,3 +253,15 @@ CDP（--remote-debugging-port）取证（analysis/tools/cdp-verify.js）：
 3. RAG/向量索引、OCR、工具箱（图像修复/去隐私）、手机远程控制、离线模型包、Ollama 集成——统一诚实降级。
 4. 各端点请求体完整 schema（高频端点与启动门端点已通过在线观测还原；其余仍未知）。
 5. 定时任务的真实调度器行为（重建版仅持久化与记录 run-now 请求）。
+
+## 18. 上游能力对齐（recon.3，O——按原版 CHANGELOG 截图清单落地）
+
+| 来源 | 能力 | 重建实现 | 验证 |
+| --- | --- | --- | --- |
+| 用户需求 | file_converter 真实化（本机有 LibreOffice） | `server/core/libreoffice.js` 探测器：env `KNOWLY_SOFFICE_PATH` → PATH(where) → 注册表 `HKLM\SOFTWARE\LibreOffice\UNO\InstallPath`（值名可含空格，如 "LibreOffice 25.8"）→ 标准路径；转换用 `-env:UserInstallation` 独立配置目录，避免与已打开实例冲突；探测阶段**不运行** `soffice --version`（Windows 下会挂起） | 本机实测命中 `D:\soft\LibreOffice\program\soffice.exe`（source=registry，25.8）；txt→pdf 真实转换测试通过 |
+| 上游 v3.14.0 | image-reader | `image_reader` 工具：本地图片 → base64 → 视觉模型（chat/completions 多模态消息，经本地代理） | 未配置模型时诚实报错；载荷结构符合 OpenAI 视觉协议 |
+| 上游 v3.12.4 | 文件批量重命名 | `file_batch_rename`：prefix/suffix/replace/sequence，dry_run 默认开，冲突防护 | 单测覆盖预览/执行/序号 |
+| 上游 v3.12.6 | 全量数据备份迁移 | `POST /api/backup/export|import`：jszip 打包持久区 JSON，导入后 `store.clearCache()` | 导出/导入/回滚往返单测通过 |
+| — | 工具目录 | 原版 16 工具 + 上游对齐新增 2（image_reader/file_batch_rename）= 18 | `GET /tools` 断言 |
+
+上游暂不落地项（依赖原厂模型/云服务）：关键词+语义混合检索、知识库术语、动态上下文压缩、图像去水印/打码、word 排版模板体系、OCR 并发、离线模型包。

@@ -90,4 +90,9 @@ function dataRoot() {
   return dataRootPath();
 }
 
-module.exports = { dataRoot, load, save, update, filePath, dataRootPath };
+/** 备份导入后必须调用：丢弃进程内缓存，让后续 load() 读到新文件 */
+function clearCache() {
+  caches.clear();
+}
+
+module.exports = { dataRoot, load, save, update, filePath, dataRootPath, clearCache, DATA_ROOT: dataRootPath };
