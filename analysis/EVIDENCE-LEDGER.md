@@ -371,3 +371,13 @@ CDP（--remote-debugging-port）取证（analysis/tools/cdp-verify.js）：
   - bundle 补丁：Ee 助手加空值保护（null→'—'），防止任何未定义数值再次炸掉整棵树
 - 验证：会员中心 4 端点全 200、root 渲染 88,799 字符、0 控制台异常、0 失败请求；39/39 测试
 
+## 25. 购买入口隐藏（recon.11，O，2026-10-11）
+
+- 用户确认会员能力解锁即可，购买入口无需保留
+- 实现：index.html 内联样式隐藏两处购买入口（不改 bundle）——
+  .membership-center__plan-buy（4 个套餐卡购买按钮）、.membership-center__quota-purchase-btn（额度卡竖排购买钮）
+- 保留展示：旗舰版（重建版）· 永久有效 · 不限量 · 已拥有标识、三档套餐卡（作为能力清单展示）
+- 验证（CDP）：planBuyVisible=0、quotaPurchaseVisible=0、旗舰/永久/不限量/已拥有全部渲染、
+  0 失败请求、0 控制台异常
+- 边界重申：会员为本地重建版自有状态（模型费用由用户自有网关承担），不涉及原厂云端服务
+
