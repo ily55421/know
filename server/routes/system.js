@@ -17,14 +17,57 @@ function register(app, { store, registry }) {
   });
 
   // ---- 配置 ----
+  // ---- 运行参数（渲染层启动/参数面板契约：GET /config 内嵌 runtime 对象）----
+  const RUNTIME_DEFAULTS = {
+    max_iterations: 20,                  // 1..100
+    max_documents_per_chat: 8,           // 1..15
+    chat_confidence_threshold: 55,       // 1..100
+    file_search_confidence_threshold: 30, // 1..100
+    enable_document_ocr: true,
+    ocr_store_images: true,
+  };
+  const RUNTIME_KEYS = Object.keys(RUNTIME_DEFAULTS);
+  const clampRuntime = (r) => ({
+    max_iterations: Math.min(100, Math.max(1, Math.floor(Number(r.max_iterations) || RUNTIME_DEFAULTS.max_iterations))),
+    max_documents_per_chat: Math.min(15, Math.max(1, Math.floor(Number(r.max_documents_per_chat) || RUNTIME_DEFAULTS.max_documents_per_chat))),
+    chat_confidence_threshold: Math.min(100, Math.max(1, Math.floor(Number(r.chat_confidence_threshold) || RUNTIME_DEFAULTS.chat_confidence_threshold))),
+    file_search_confidence_threshold: Math.min(100, Math.max(1, Math.floor(Number(r.file_search_confidence_threshold) || RUNTIME_DEFAULTS.file_search_confidence_threshold))),
+    enable_document_ocr: r.enable_document_ocr !== false,
+    ocr_store_images: r.ocr_store_images !== false,
+  });
+
   app.get('/config', (_req, res) => {
-    res.json({ success: true, data: store.load('config', {}) });
+    const stored = store.load('config', {});
+    res.json({ success: true, data: { ...stored, runtime: clampRuntime({ ...RUNTIME_DEFAULTS, ...(stored.runtime || {}) }) } });
   });
 
   app.post('/config', (req, res) => {
     const patch = req.body && typeof req.body === 'object' ? req.body : {};
-    const next = store.update('config', {}, (current) => ({ ...current, ...patch }));
-    res.json({ success: true, data: next });
+    // 运行参数面板发扁平字段：归位到 config.runtime；其余字段照旧顶层合并
+    const rest = {};
+    const runtimePatch = {};
+    for (const [key, value] of Object.entries(patch)) {
+      if (RUNTIME_KEYS.includes(key)) runtimePatch[key] = value;
+      else rest[key] = value;
+    }
+    const next = store.update('config', {}, (current) => ({
+      ...current,
+      ...rest,
+      runtime: clampRuntime({ ...RUNTIME_DEFAULTS, ...(current.runtime || {}), ...runtimePatch }),
+    }));
+    res.json({ success: true, data: { ...next, runtime: clampRuntime(next.runtime || {}) } });
+  });
+
+  // ---- 会员/能力状态（渲染层多个面板消费 userStatus 字段）----
+  app.get('/user-status', (_req, res) => {
+    res.json({
+      success: true,
+      userStatus: {
+        supports_multimodal: false,
+        remote_channel_limit: 0,
+        membership_expired: false,
+      },
+    });
   });
 
   // ---- 缓存开关（形态对齐原版在线响应：字段在顶层）----

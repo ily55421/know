@@ -467,6 +467,40 @@ test('应用管理：种子示例 + 导入 + 重命名 + 内容读写 + 删除',
   });
 });
 
+test('运行参数契约：GET /config 内嵌 runtime 默认值，POST 扁平字段归位（渲染层参数面板）', async () => {
+  await withServer(async (base) => {
+    const cfg = await json(base, 'GET', '/config');
+    const rt = cfg.body.data.runtime;
+    assert.ok(rt, 'GET /config 必须内嵌 runtime（渲染层启动校验 max_documents_per_chat）');
+    assert.ok(rt.max_documents_per_chat >= 1 && rt.max_documents_per_chat <= 15);
+    assert.ok(rt.max_iterations >= 1 && rt.max_iterations <= 100);
+    assert.ok(rt.chat_confidence_threshold >= 1 && rt.chat_confidence_threshold <= 100);
+    assert.ok(rt.file_search_confidence_threshold >= 1 && rt.file_search_confidence_threshold <= 100);
+    assert.equal(typeof rt.enable_document_ocr, 'boolean');
+    assert.equal(typeof rt.ocr_store_images, 'boolean');
+
+    // 参数面板保存：扁平 body（bundle @~6,988,000）
+    const saved = await json(base, 'POST', '/config', {
+      max_iterations: 45, max_documents_per_chat: 6,
+      chat_confidence_threshold: 70, file_search_confidence_threshold: 25,
+      enable_document_ocr: false, ocr_store_images: false,
+    });
+    assert.equal(saved.body.success, true);
+    const again = await json(base, 'GET', '/config');
+    assert.equal(again.body.data.runtime.max_iterations, 45);
+    assert.equal(again.body.data.runtime.max_documents_per_chat, 6);
+    assert.equal(again.body.data.runtime.enable_document_ocr, false);
+    // 非法值被钳制
+    const clamped = await json(base, 'POST', '/config', { max_documents_per_chat: 99 });
+    assert.equal(clamped.body.data.runtime.max_documents_per_chat, 15);
+
+    // user-status 形态（多面板消费 userStatus 字段）
+    const us = await json(base, 'GET', '/user-status');
+    assert.equal(us.body.success, true);
+    assert.ok(us.body.userStatus, '应含 userStatus');
+  });
+});
+
 test('未实现端点返回 404 且带说明', async () => {
   await withServer(async (base) => {
     const res = await fetch(base + '/definitely/not/exist');

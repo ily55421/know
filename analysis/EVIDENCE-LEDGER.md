@@ -336,3 +336,21 @@ CDP（--remote-debugging-port）取证（analysis/tools/cdp-verify.js）：
   seeded 标记保证用户删除后不复活。
 - 验证：GET /apps 200（3 个示例）、UI 导航 0 失败请求；38/38 测试（新增 apps CRUD 全链路用例）。
 
+## 23. 运行参数缺失修复 + 验证方法补强（recon.9，O，2026-10-11）
+
+- 用户指出的盲区：此前的 UI 扫描只抓网络层（≥400）与控制台异常，
+  而「读取运行参数失败：缺少 max_documents_per_chat」是 **200 响应内的字段校验失败**——网络层不可见。
+- 扫描器补强：ui-sweep 每步后捕获界面 toast（.ant-message-notice，按 error/warning 分类）。
+- 契约还原（bundle @~6,127,690 / @~6,867,052）：
+  - GET /config 必须内嵌 runtime 对象：max_iterations(1..100)、max_documents_per_chat(1..15)、
+    chat_confidence_threshold(1..100)、file_search_confidence_threshold(1..100)、
+    enable_document_ocr(bool)、ocr_store_images(bool)；渲染层启动校验失败即 toast 报错
+  - 参数面板保存为**扁平** POST /config body → 后端归位到 config.runtime（非法值钳制）
+  - GET /user-status → {success, userStatus:{supports_multimodal, remote_channel_limit,...}}
+  - GET /api/offline-pack/options 的 data 需要 {bundles:[{id,name,models}], models}
+    （首版 {options:[]} 缺 bundles 导致面板抛「加载离线模型包选项失败」）
+- 修复与验证：GET /config 返回 clamp 后的 runtime 默认值（真机启动 toast 清零）；
+  POST 扁平归位 + 钳制单测；离线包 bundles 形态修复；
+  「大模型调用出现问题」为渲染层对网关偶发失败的通用文案（18888 网关侧，非端点缺陷）
+- 回归：39/39 测试（新增运行参数契约用例）
+

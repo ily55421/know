@@ -64,11 +64,13 @@ const typeIntoTextarea = (text) => evalJs(`(() => {
 })()`);
 
 const report = {};
+const readToasts = () => evalJs(`[...document.querySelectorAll('.ant-message-notice, .ant-message .ant-message-notice-content')].map(n => ({cls: n.className.match(/-(error|warning|success|info|warning)\\b/)?.[1] || '', text: n.innerText.slice(0, 120)})).filter(t => t.text)`);
 const record = async (label, fn, waitMs) => {
   const before = failedRequests.length;
   const result = await fn();
   await sleep(waitMs || WAIT_MS);
-  report[label] = { ...(result ? { result } : {}), fails: failedRequests.slice(before) };
+  const toasts = await readToasts();
+  report[label] = { ...(result ? { result } : {}), fails: failedRequests.slice(before), toasts };
 };
 
 await record('页面/新建会话', () => clickByText('新建会话'));
@@ -128,6 +130,15 @@ await record('会话/任务回答', () => evalJs(`document.body.innerText.slice(
 const all = failedRequests.map((f) => `${f.status} ${f.method} ${f.url}`);
 console.log('=== 失败请求（去重）===');
 for (const u of [...new Set(all)]) console.log(' ', u);
+const errorToasts = [];
+for (const [k, v] of Object.entries(report)) {
+  for (const t of v.toasts || []) {
+    if (t.cls === 'error' || t.cls === 'warning') errorToasts.push(`${k}: [${t.cls}] ${t.text}`);
+  }
+}
+console.log('=== 界面错误/警告 toast ===');
+for (const t of [...new Set(errorToasts)]) console.log(' ', t);
+if (!errorToasts.length) console.log('  （无）');
 console.log('=== 控制台异常（去重，前 12）===');
 for (const e of [...new Set(consoleErrors)].slice(0, 12)) console.log(' ', e);
 console.log('=== 页面点击/对话摘要 ===');

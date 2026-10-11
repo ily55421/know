@@ -137,8 +137,15 @@ function register(app, { store }) {
   });
 
   // ---- 离线模型包 ----
+  // 面板契约（bundle @~6,973,690）：data.bundles=[{id,name,models:[{id,name,category}]}] + data 模型列表
   app.get('/api/offline-pack/options', (_req, res) => {
-    res.json({ success: true, data: { options: [] } });
+    res.json({
+      success: true,
+      data: {
+        bundles: [{ id: 'default', name: '默认模型包', models: [] }],
+        models: [],
+      },
+    });
   });
   for (const route of ['/api/offline-pack/export', '/api/offline-pack/import']) {
     app.post(route, (_req, res) => {
