@@ -1,5 +1,21 @@
 # Changelog（重建版）
 
+## [3.13.2-recon.4] — 2026-10-11
+
+### 修复：三方大模型配置面板
+- 渲染层「三方大模型配置」页调用的是 **GET/POST /api/config + POST /api/config/test**（带 /api 前缀），
+  此前后端仅实现 /config 导致保存/测试 404（UI 报「配置保存失败」「连接测试失败」）。
+- 从 bundle.js 反混淆还原面板契约并实现：
+  - GET /api/config → {provider, custom:{has_api_key, api_key, api_key_preview, api_base, llm_model, use_custom_embedding, ...}}
+  - POST /api/config → 双写持久化（面板回显字段 + llm.js 兼容字段 api_key/base_url/model）
+  - POST /api/config/test → 用表单当前值经主进程代理实测对话（可选向量测试），返回 {success} 或 {success:false, message}
+- GET /api/models/current：custom 配置后 source_type=custom（含 api_base）
+- 验证：34/34 测试；真机全链路——保存 → 测试连接通过 → SSE 对话经用户本机网关(18888)返回真实回答
+
+### 验证
+- npm test 通过
+
+
 ## [3.13.2-recon.3] — 2026-10-11
 
 ### 上游能力对齐（按原版 CHANGELOG 截图清单）
