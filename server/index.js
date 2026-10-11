@@ -4,15 +4,14 @@
  * Knowly 后端服务（重建版）——替代原版 resources/python-server/findme.exe。
  *
  * 对外契约与原版对齐（证据见 analysis/EVIDENCE-LEDGER.md）：
- * - 监听 127.0.0.1:18099（electron/src/config.js 的 API_BASE_URL）
- * - 启动后在 stdout 打印 uvicorn 风格的就绪行，主进程以
- *   `output.includes('Uvicorn running on')` 判定服务已启动（electron/src/python-server.js）
- * - REST 面：/health /config /chat/sessions /qa/* /tasks /tools /directories 等
- * - LLM 调用统一走主进程 API 代理 127.0.0.1:18081（原版架构：Python → 代理 → 模型厂商）
+ * - 监听 127.0.0.1:28099（原版 18099；electron/src/config.js 的 API_PORT 同源）
+ * - 启动后打印 uvicorn 风格就绪行（主进程以 output.includes('Uvicorn running on') 判定就绪）
+ * - REST 面：/health /config /chat/sessions /qa/* /tasks /tools /directories /apps 等
+ * - LLM 调用统一走主进程 API 代理 127.0.0.1:28081（原版架构：Python → 代理 → 模型厂商）
+ * - 数据根由主进程经 --data-root 命令行参数传入（utilityProcess 的 env 传递不可靠）
  */
 
 const express = require('express');
-const path = require('node:path');
 
 // [重建版适配] 数据根以命令行参数 --data-root 传入（主进程 utilityProcess fork 保证送达）；
 // 兜底顺序：argv → env → exe 旁 data/backend（store.js 同款自证逻辑）
@@ -58,6 +57,22 @@ app.use((req, _res, next) => {
 const registry = new ToolRegistry();
 store.dataRoot();
 
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok' });
+});
+
+require('./routes/system').register(app, { store, registry });
+require('./routes/sessions').register(app, { store });
+require('./routes/qa').register(app, { store, registry });
+require('./routes/tasks').register(app, { store });
+require('./routes/files').register(app, { store });
+require('./routes/apps').register(app, { store });
+
+// 兜底：未知路径按原版 FastAPI 404 形态返回
+app.use((req, res) => {
+  res.status(404).json({ detail: 'Not Found', path: req.path, note: '重建版后端未实现该端点（详见 analysis/EVIDENCE-LEDGER.md）' });
+});
+
 const server = app.listen(PORT, HOST, () => {
   console.log(`INFO:     Started server process [${process.pid}]`);
   console.log(`INFO:     Waiting for application startup.`);
@@ -69,9 +84,9 @@ const server = app.listen(PORT, HOST, () => {
 server.on('error', (error) => {
   if (error.code === 'EADDRINUSE') {
     console.error(`ERROR:    端口 ${PORT} 已被占用（原版 Knowly 或另一实例可能正在运行）。`);
-    // [重建版适配] 进程内模式（打包版）不能 process.exit——那会杀掉整个应用，让主进程超时报错
+    // [重建版适配] 子进程模式（打包版）不能 process.exit——让主进程按启动超时/清理流程处理
     if (process.env.KNOWLY_IN_PROCESS === '1') {
-      console.error('ERROR:    进程内模式：后端启动失败，主进程将按启动超时处理。');
+      console.error('ERROR:    子进程模式：后端启动失败，主进程将按启动超时处理。');
       return;
     }
     process.exit(1);

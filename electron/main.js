@@ -28,20 +28,44 @@ if (process.env.KNOWLY_USER_DATA) {
   app.setPath('userData', path.join(app.getPath('appData'), 'KnowlyRecon'));
 }
 
-// [重建版适配] 首次便携化迁移：把开发期留在 %APPDATA%/KnowlyRecon/backend-data 的数据
-// 搬到便携数据根（sessions 按会话 id 合并去重，其余 JSON 不覆盖已有文件）。
-console.log(`[重建版适配] 诊断: execPath=${process.execPath} | isDevElectron=${isDevElectron} | isPackaged=${app.isPackaged} | portableRoot=${portableRoot} | KNOWLY_DATA_ROOT=${process.env.KNOWLY_DATA_ROOT || '(未设)'} | userData=${app.getPath('userData')}`);
+// [重建版适配] 首次便携化迁移：把开发期留在 %APPDATA%/KnowlyRecon/backend-data 的用户数据
+// 搬到便携数据根（sessions 按会话 id 合并去重；config 的模型配置优先补齐；apps 应用数据整体复制）。
 if (!isDevElectron && process.env.KNOWLY_DATA_ROOT) {
   try {
     const legacy = path.join(app.getPath('appData'), 'KnowlyRecon', 'backend-data');
     const target = process.env.KNOWLY_DATA_ROOT;
-    if (fs.existsSync(legacy) && !fs.existsSync(path.join(target, 'sessions.json'))) {
+    if (fs.existsSync(legacy)) {
       fs.mkdirSync(target, { recursive: true });
       for (const f of fs.readdirSync(legacy)) {
         if (!f.endsWith('.json')) continue;
-        fs.copyFileSync(path.join(legacy, f), path.join(target, f));
+        const src = path.join(legacy, f);
+        const dest = path.join(target, f);
+        if (!fs.existsSync(dest)) {
+          fs.copyFileSync(src, dest);
+          continue;
+        }
+        // config.json：模型配置是用户关键数据，逐键补齐（便携根已有值优先）
+        if (f === 'config.json') {
+          try {
+            const legacyCfg = JSON.parse(fs.readFileSync(src, 'utf8'));
+            const targetCfg = JSON.parse(fs.readFileSync(dest, 'utf8'));
+            delete legacyCfg.marker;
+            const merged = { ...legacyCfg, ...targetCfg };
+            if (!targetCfg.api_key && legacyCfg.api_key) {
+              fs.writeFileSync(dest, JSON.stringify(merged, null, 2));
+              console.log('[重建版适配] 已补齐便携数据根的模型配置');
+            }
+          } catch { /* 配置损坏时跳过 */ }
+        }
       }
-      console.log('[重建版适配] 已迁移历史数据到便携数据根:', target);
+      // apps 应用数据目录
+      const legacyApps = path.join(legacy, 'apps');
+      const targetApps = path.join(target, 'apps');
+      if (fs.existsSync(legacyApps) && !fs.existsSync(targetApps)) {
+        fs.cpSync(legacyApps, targetApps, { recursive: true });
+        console.log('[重建版适配] 已迁移应用数据目录');
+      }
+      console.log('[重建版适配] 便携数据根检查完成:', target);
     }
   } catch (e) {
     console.warn('[重建版适配] 历史数据迁移失败（不影响启动）:', e.message);

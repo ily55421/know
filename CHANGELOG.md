@@ -1,5 +1,47 @@
 # Changelog（重建版）
 
+## [3.13.2-recon.14] — 2026-10-12
+
+### 修复：模型调用错误（正则误删路由事故 + 配置未迁移）
+- **事故**：此前用非贪婪正则删除临时调试端点时，误把 /health 与全部 6 组路由注册一并删除，
+  server/index.js 只剩裸 express → 后端对所有请求返回 404 HTML → 表现为「调用模型错误」
+- **修复**：server/index.js 完整重建（路由/CORS/日志/404 兜底/就绪行）；改代码的纪律更新为
+  精确锚点编辑 + 全量接口冒烟（教训入档 §28）
+- **模型配置未随数据根迁移**：便携根只有会话、config 未搬 → 已迁入并增强 main.js 迁移逻辑
+  （config 逐键补齐、apps 目录复制）
+
+### 验证
+- /health ✓ /config 含 api_key+base_url+model+runtime ✓ /qa/chat/stream 经 18888 网关真实回答 ✓
+- 39/39 测试
+
+
+## [3.13.2-recon.13] — 2026-10-12
+
+### 修复：左侧历史对话点击后气泡空白（连环 6 层根因）
+1. **消息保存契约**：渲染层 POST /chat/sessions/{id}/messages 的 body 实为 `{messages:[数组]}`
+   （一次提交本轮 user+assistant），旧实现按单条解析 → 历史全是空 user 消息、assistant 从未入库。
+   已支持数组契约（兼容旧单条）；存量空消息一次性修复（首条以会话标题回填、去重复空条）
+2. **数据根分裂**：开发版 `%APPDATA%/KnowlyRecon/backend-data` 与便携版 exe 旁 `data/backend` 错位
+3. **config.js 抢先执行（核心）**：main.js 顶部 require local-image-protocol 时会提前加载 config.js，
+   在便携化 setPath 之前用默认 userData 写死 KNOWLY_DATA_ROOT；已把该 require 延后到便携化块之后
+4. **isPackaged 判据失效**：重命名 electron.exe 的 isPackaged 不可靠；改用"exe 是否在 node_modules 内"
+5. **utilityProcess 环境传递**：env 不可靠且严禁 ELECTRON_RUN_AS_NODE（子进程 code=9 退出）；
+   数据根改由命令行参数 `--data-root` 传递，fork 前清理占用 28099 的陈旧后端
+6. **陈旧进程干扰**：开发模式 electron.exe 及其 node 后端长期占用 28099，导致请求打到旧后端；
+   清理策略改为按命令行匹配 electron/node/python
+
+### 打包形态调整
+- electron-builder 单文件 portable 因本机杀毒锁目录重命名（EPERM，3 次重试失败）无法重建 →
+  采用**文件夹版绿色安装**（项目根 Knowly.exe + resources/app.asar：双击独立启动、数据落项目 data/）
+- 桌面快捷方式「Knowly (Recon)」已重指到 Knowly.exe；旧单文件 exe 改名 .old-broken
+- .gitignore 补齐 Electron 运行时与构建目录（resources/、locales/、release*/、*.dll 等）
+
+### 验证（真机）
+- /debug-env：dataRoot = `E:\data\Knowly\data\backend` ✓
+- GET /config：`runtime.max_documents_per_chat = 8` ✓（启动 toast 清零）
+- CDP 点击历史项：气泡渲染"（历史会话）你好，简单介绍一下你自己" ✓
+- 39/39 测试
+
 ## [3.13.2-recon.12] — 2026-10-11
 
 ### 新功能：免安装便携 exe + 桌面快捷方式

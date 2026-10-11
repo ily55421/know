@@ -433,3 +433,29 @@ CDP（--remote-debugging-port）取证（analysis/tools/cdp-verify.js）：
 - `GET /chat/sessions/{id}`：历史消息带内容 ✓
 - CDP 点击历史项：气泡渲染"（历史会话）你好，简单介绍一下你自己" ✓
 - 39/39 测试
+
+## 28. 模型调用错误 —— 正则误删路由事故与配置迁移（recon.14，O，2026-10-12）
+
+### 事故经过（自我复盘）
+- 前一天为移除临时调试端点 /debug-env，用**非贪婪正则**做替换：
+  `idx.replace(/app\.get\('\/debug-env'[\s\S]*?\n\}\);\n\n/, '')` —— 非贪婪回溯把
+  **/health 定义与全部 6 个路由注册**一并吞掉，server/index.js 只剩裸 express + listen（85 行）。
+- 该文件被打进 asar 后，应用后端对所有请求返回 Express 默认 404 HTML
+  （"Cannot GET /health"）→ 用户看到"调用模型错误"（配置读不到、全部接口失效）。
+- **教训入档**：删除代码必须用精确锚点或结构化编辑，禁用大范围正则；改完必须跑全量接口冒烟
+  （本次 39 项测试用的是 tests/ 自建 app，未覆盖 server/index.js 本体装配，故未拦截）。
+
+### 修复
+1. server/index.js 完整重建：/health + 6 组路由注册 + CORS + 请求日志 + 404 兜底 + uvicorn 就绪行
+2. **模型配置未随数据根迁移**：便携根 data/backend 只有 sessions（迁移逻辑只搬缺失文件，
+   config.json 已存在即跳过）→ 应用读不到 api_key → "调用模型错误"。
+   已把旧数据根的 config（模型配置，去除调试 marker）与 apps 应用数据迁入便携根；
+   main.js 迁移逻辑增强：config.json 逐键补齐（模型配置优先）、apps 目录整体复制。
+3. 冒烟补强：新增对 **server/index.js 装配产物**的验证方式（起真实服务 curl /health、/config、
+   /qa/chat/stream），测试套件外单列，避免同类事故复发。
+
+### 终态验证（真机）
+- GET /health = {"status":"ok"} ✓
+- GET /config：api_key=self / base_url=http://127.0.0.1:18888/v1 / model=self / runtime ✓
+- POST /qa/chat/stream：经 18888 网关真实返回回答 ✓
+- 39/39 测试
