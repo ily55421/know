@@ -384,6 +384,20 @@ test('任务模式渲染层契约：POST /qa/task/executions 创建 → GET stre
   });
 });
 
+test('LibreOffice 面板契约：/libreoffice-status 必须带 success（面板判定 !!t.success && t.available）+ 引导安装端点', async () => {
+  await withServer(async (base) => {
+    const res = await fetch(base + '/libreoffice-status');
+    const body = await res.json();
+    assert.equal(body.success, true, '缺 success:true 会让设置面板恒显示「一键安装」');
+    assert.equal(body.available, true, '本机装有 LibreOffice，应可用');
+    assert.ok(body.path, '应带 soffice 路径');
+
+    const install = await json(base, 'POST', '/libreoffice-help-install');
+    assert.equal(install.body.success, true);
+    assert.ok(install.body.message, '应带引导消息');
+  });
+});
+
 test('未实现端点返回 404 且带说明', async () => {
   await withServer(async (base) => {
     const res = await fetch(base + '/definitely/not/exist');

@@ -173,10 +173,24 @@ function register(app, { store, registry }) {
     res.json({ success: true, data: store.load('mcp', { items: [] }).items });
   });
   // 渲染层 skill 导出能力校验（office.docx_* 工具执行前探测，消费 {available}）
+  // 设置面板状态判定为 !!t.success && t.available —— 必须带 success:true
   app.get('/libreoffice-status', (_req, res) => {
     const { detectSoffice } = require('../core/libreoffice');
     const info = detectSoffice();
-    res.json({ available: Boolean(info.found), path: info.path || null, source: info.source || null });
+    res.json({ success: true, available: Boolean(info.found), path: info.path || null, source: info.source || null, version_hint: info.versionHint || null });
+  });
+  // 「一键安装」按钮（原版亦为引导式：POST 后 toast + 刷新状态）
+  app.post('/libreoffice-help-install', (_req, res) => {
+    const { detectSoffice } = require('../core/libreoffice');
+    const info = detectSoffice({ useCache: false });
+    if (info.found) {
+      return res.json({ success: true, message: `已检测到 LibreOffice（${info.path}）` });
+    }
+    res.json({
+      success: true,
+      message: '请到 https://www.libreoffice.org/download/ 下载安装（支持自定义盘符），'
+        + '或设置环境变量 KNOWLY_SOFFICE_PATH 指向 soffice.exe，保存后重启应用即可识别',
+    });
   });
 
   // ---- 系统信息（形态对齐原版：cpu/memory/gpu/platform）----

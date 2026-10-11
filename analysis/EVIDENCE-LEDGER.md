@@ -291,3 +291,13 @@ CDP（--remote-debugging-port）取证（analysis/tools/cdp-verify.js）：
 - 任务模式真实发送：执行创建 → 事件流 → 会话入库
 - 回归：35/35 测试
 
+## 20. LibreOffice 设置面板状态修复（O，2026-10-11）
+
+- 现象：设置 → LibreOffice 面板恒显示「一键安装」，不显示已安装状态
+- 根因：面板状态判定为 （bundle @~7,021,804），而
+  /libreoffice-status 首版只返回 {available,...} 缺 success:true → 恒为 false
+- 修复：/libreoffice-status 增加 success:true（保留 available/path/source/version_hint）；
+  补实现 POST /libreoffice-help-install（原版亦为引导式安装：成功后 info toast + 刷新状态；
+  已安装时返回检测路径，未安装时返回下载与 KNOWLY_SOFFICE_PATH 引导）
+- 验证：UI 真机读取面板文本为「已安装」成功态（一键安装按钮消失）；36/36 测试含契约回归用例
+
