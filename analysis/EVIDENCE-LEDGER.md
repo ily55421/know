@@ -354,3 +354,20 @@ CDP（--remote-debugging-port）取证（analysis/tools/cdp-verify.js）：
   「大模型调用出现问题」为渲染层对网关偶发失败的通用文案（18888 网关侧，非端点缺陷）
 - 回归：39/39 测试（新增运行参数契约用例）
 
+## 24. 会员中心白屏修复 + 最高档位会员（recon.10，O，2026-10-11）
+
+- 白屏根因：会员中心组件（XCt）用量行 Ee(v.max_total_files) 无空值保护，而重建版 /user-status
+  首版返回的 userStatus 缺会员字段 → undefined.toLocaleString() → React 树整体卸载（root 清空）
+- 边界说明：重建版的会员状态是**本地后端自有状态**——模型调用走用户自有网关（费用自担），
+  不触碰原厂云端会员/配额服务（遥测门默认关闭），故最高档位仅是本地模拟状态，非破解原厂服务
+- 实现（字段消费自 bundle XCt @~6,895,313）：
+  - GET /user-status → 旗舰版（重建版）：level=flagship、永久（days_remaining=null）、
+    max_total_files=9,999,999、max_file_size_mb=2048、max_text_length=5,000,000、
+    supports_multimodal/media/vision=true、remote_channel_limit=99
+  - GET /llm-quota → is_unlimited=true（不限量）、is_permanent=true
+  - GET /membership-plans → {success, plans:[基础/专业/旗舰]}（旗舰 is_active）
+  - GET /get-total-files → {success, currentIndexedFiles:0}
+  - POST /verify-offline-activation → 直接确认最高档位
+  - bundle 补丁：Ee 助手加空值保护（null→'—'），防止任何未定义数值再次炸掉整棵树
+- 验证：会员中心 4 端点全 200、root 渲染 88,799 字符、0 控制台异常、0 失败请求；39/39 测试
+

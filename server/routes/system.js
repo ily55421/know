@@ -58,15 +58,91 @@ function register(app, { store, registry }) {
     res.json({ success: true, data: { ...next, runtime: clampRuntime(next.runtime || {}) } });
   });
 
-  // ---- 会员/能力状态（渲染层多个面板消费 userStatus 字段）----
+  // ---- 会员状态（重建版：本地最高档位，模型费用由用户自有网关承担，不涉及原厂云端）----
+  // 字段消费自 bundle 会员中心组件（XCt @~6,895,313）
+  const MEMBERSHIP_USER_STATUS = {
+    level: 'flagship',
+    level_name: '旗舰版（重建版）',
+    is_temporary: false,
+    is_expired: false,
+    expiry_date: null,
+    days_remaining: null, // null → 永久分支，不显示剩余天数
+    upgrade_source: 'reconstruction',
+    max_total_files: 9999999,
+    max_file_size_mb: 2048,
+    max_text_length: 5000000,
+    supports_multimodal: true,
+    supports_media: true,
+    supports_vision: true,
+    remote_channel_limit: 99,
+  };
+
   app.get('/user-status', (_req, res) => {
     res.json({
       success: true,
-      userStatus: {
-        supports_multimodal: false,
-        remote_channel_limit: 0,
-        membership_expired: false,
+      userStatus: MEMBERSHIP_USER_STATUS,
+      expiryWarning: null,
+      currentIndexedFiles: 0,
+    });
+  });
+
+  // 已索引文件数（会员中心用量卡，消费顶层 currentIndexedFiles）
+  app.get('/get-total-files', (_req, res) => {
+    res.json({ success: true, currentIndexedFiles: 0 });
+  });
+
+  // 智能问答额度（会员中心额度卡：is_unlimited → 不限量展示）
+  app.get('/llm-quota', (_req, res) => {
+    res.json({
+      success: true,
+      data: {
+        is_permanent: true,
+        expiry_date: null,
+        is_unlimited: true,
+        membership_quota: 999999999,
+        purchased_quota: 0,
+        used_queries: 0,
+        total_quota: 999999999,
       },
+    });
+  });
+
+  // 离线激活码校验（重建版已是最高档位，直接确认激活）
+  app.post('/verify-offline-activation', (req, res) => {
+    res.json({
+      success: true,
+      data: {
+        level: MEMBERSHIP_USER_STATUS.level,
+        level_name: MEMBERSHIP_USER_STATUS.level_name,
+        is_permanent: true,
+        expiry_date: null,
+        days_remaining: null,
+        activated_at: Date.now(),
+      },
+    });
+  });
+
+  // 会员套餐列表（渲染层消费顶层 plans 字段；重建版旗舰版为当前档位）
+  app.get('/membership-plans', (_req, res) => {
+    res.json({
+      success: true,
+      plans: [
+        {
+          level: 'basic', name: '基础版', description: '入门能力',
+          original_price: 29, discount_price: null, is_active: false,
+          features: ['基础对话', '文件学习'],
+        },
+        {
+          level: 'premium', name: '专业版', description: '进阶能力',
+          original_price: 99, discount_price: null, is_active: false,
+          features: ['基础版全部能力', '更高额度', '优先支持'],
+        },
+        {
+          level: 'flagship', name: '旗舰版（重建版）', description: '全能力解锁（本地重建版：模型费用由用户自有网关承担）',
+          original_price: 0, discount_price: 0, is_active: true,
+          features: ['全部能力解锁', '对话/任务不限量', '多模态与图片理解', '手机远程通道'],
+        },
+      ],
     });
   });
 
