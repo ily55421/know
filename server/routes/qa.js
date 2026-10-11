@@ -1,11 +1,21 @@
 'use strict';
 
-/** 问答流路由：/qa/chat/stream、/qa/task/*（含执行记录与取消）。 */
-const { runChatStream, runTaskStream } = require('../agent');
+/** 问答流路由：/qa/chat/stream、/qa/task/*。
+ *
+ * 任务模式（渲染层契约，反混淆自 bundle.js @~6,155,949）：
+ *   1. POST /qa/task/executions        → {success, execution_id}（立即返回，后台执行）
+ *   2. GET  /qa/task/executions/{id}/stream → SSE 订阅（先重放已产生事件，再实时跟随至终态）
+ *   3. POST /qa/task/executions/{id}/cancel → 取消
+ *   4. POST /qa/task/executions/{id}/user-input → ask_user 交互（重建版不支持，诚实降级）
+ */
+
+const { runChatStream, runTaskStream, runTaskExecution } = require('../agent');
 
 function register(app, { store, registry }) {
   const executions = new Map(); // execution_id → {status, events, answer}
   const aborts = new Map();     // execution_id → AbortController
+
+  const isTerminal = (status) => ['completed', 'failed', 'cancelled'].includes(status);
 
   app.post('/qa/chat/stream', (req, res) => {
     const controller = new AbortController();
@@ -15,12 +25,53 @@ function register(app, { store, registry }) {
     });
   });
 
+  // 兼容保留：直连式任务流
   app.post('/qa/task/stream', (req, res) => {
     const controller = new AbortController();
     res.on('close', () => controller.abort());
-    runTaskStream(store, registry, executions, req.body, res, controller.signal).catch(() => {
+    runTaskStream(store, registry, executions, aborts, req.body, res, controller.signal).catch(() => {
       if (!res.headersSent) res.status(500).json({ success: false, error: '流式响应中断' });
     });
+  });
+
+  // 渲染层任务模式主链路：创建执行并立即返回，后台执行
+  app.post('/qa/task/executions', (req, res) => {
+    const executionId = `exec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const record = { execution_id: executionId, status: 'running', created_at: Date.now(), events: [] };
+    executions.set(executionId, record);
+    const controller = new AbortController();
+    aborts.set(executionId, controller);
+    runTaskExecution(store, registry, executions, aborts, req.body || {}, null, controller.signal, record).catch(() => {});
+    res.json({ success: true, execution_id: executionId });
+  });
+
+  // 渲染层订阅：先重放，后实时跟随
+  app.get('/qa/task/executions/:executionId/stream', (req, res) => {
+    const record = executions.get(req.params.executionId);
+    if (!record) {
+      return res.status(404).json({ success: false, error: '执行记录不存在' });
+    }
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'X-Accel-Buffering': 'no',
+    });
+    let cursor = 0;
+    const send = (event) => res.write(`data: ${JSON.stringify(event)}\n\n`);
+    const timer = setInterval(() => {
+      while (cursor < record.events.length) {
+        send(record.events[cursor]);
+        cursor += 1;
+      }
+      if (isTerminal(record.status) && cursor >= record.events.length) {
+        send({ type: 'execution_status', data: { execution_id: record.execution_id, status: record.status } });
+        clearInterval(timer);
+        res.end();
+      }
+    }, 120);
+    req.on('close', () => clearInterval(timer));
   });
 
   app.get('/qa/task/executions', (_req, res) => {
@@ -46,28 +97,14 @@ function register(app, { store, registry }) {
     });
   });
 
-  app.get('/qa/task/executions/:executionId/stream', (req, res) => {
-    const record = executions.get(req.params.executionId);
-    if (!record) {
-      return res.status(404).json({ success: false, error: '执行记录不存在' });
-    }
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream; charset=utf-8',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    });
-    for (const event of record.events) {
-      res.write(`data: ${JSON.stringify(event)}\n\n`);
-    }
-    res.write('data: {"type":"execution_status","data":{"execution_id":"' + record.execution_id + '","status":"' + record.status + '"}}\n\n');
-    res.end();
-  });
-
   app.post('/qa/task/executions/:executionId/cancel', (req, res) => {
     const controller = aborts.get(req.params.executionId);
     if (controller) controller.abort();
     const record = executions.get(req.params.executionId);
-    if (record && record.status === 'running') record.status = 'cancelling';
+    if (record && !isTerminal(record.status)) {
+      record.status = record.status === 'cancelling' ? 'cancelled' : 'cancelling';
+      record.events.push({ type: 'cancelling', data: { execution_id: record.execution_id } });
+    }
     res.json({ success: true, data: { execution_id: req.params.executionId, status: 'cancelling' } });
   });
 

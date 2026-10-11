@@ -364,6 +364,26 @@ test('三方模型配置面板：/api/config 读写 + /api/config/test（形态�
   });
 });
 
+test('任务模式渲染层契约：POST /qa/task/executions 创建 → GET stream 订阅到终态', async () => {
+  await withServer(async (base) => {
+    const created = await json(base, 'POST', '/qa/task/executions', { query: '做个任务' });
+    assert.equal(created.body.success, true, created.body.error);
+    assert.ok(created.body.execution_id, '应返回 execution_id');
+
+    // 订阅事件流：应收到 execution_start → … → 终态
+    const res = await fetch(`${base}/qa/task/executions/${created.body.execution_id}/stream`);
+    assert.equal(res.status, 200);
+    assert.ok((res.headers.get('content-type') || '').includes('text/event-stream'));
+    const text = await res.text();
+    const events = text.split('\n').filter((l) => l.startsWith('data: ')).map((l) => JSON.parse(l.slice(6)));
+    assert.ok(events.some((e) => e.type === 'execution_start'), '应有 execution_start');
+    assert.ok(events.some((e) => ['error', 'complete', 'cancelled'].includes(e.type)), '应有业务事件');
+    const last = events[events.length - 1];
+    assert.equal(last.type, 'execution_status', '流应以 execution_status 终态收尾');
+    assert.ok(['completed', 'failed', 'cancelled'].includes(last.data.status));
+  });
+});
+
 test('未实现端点返回 404 且带说明', async () => {
   await withServer(async (base) => {
     const res = await fetch(base + '/definitely/not/exist');

@@ -80,6 +80,36 @@ function register(app, { store }) {
     });
   }
 
+  // ---- 知识创作成就（字段消费自 bundle fmt 组件：summary/status/activityDays/folders/lastError）----
+  // 依赖原版索引统计，重建版返回全零 + 空热力图，让页面优雅渲染
+  const zeroCounts = () => ({ added: 0, modified: 0, deleted: 0 });
+  app.get('/knowledge-activity/overview', (req, res) => {
+    res.json({
+      success: true,
+      data: {
+        months: Number(req.query.months) || 12,
+        status: { running: false, last_run_at: null, progress: 0 },
+        summary: { today: zeroCounts(), last7Days: zeroCounts(), last30Days: zeroCounts() },
+        activity30d: zeroCounts(),
+        activityDays: [],
+        folders: [],
+        folderPath: null,
+        lastError: null,
+        total_learned: 0,
+        total_documents: 0,
+        last_activity: null,
+        daily: [],
+      },
+    });
+  });
+  // 「立即统计」按钮（按钮 loading 取 data.status.running）
+  app.post('/knowledge-activity/run-now', (_req, res) => {
+    res.json({ success: true, data: { status: { running: false, last_run_at: new Date().toISOString() } } });
+  });
+  app.get('/knowledge-activity/events', (req, res) => {
+    res.json({ success: true, data: [], limit: Number(req.query.limit) || 200 });
+  });
+
   // ---- 导出 ----
   app.post('/export/xmind', (_req, res) => {
     res.json({ success: false, error: 'XMind 导出依赖原版 mind-elixir → xmind 转换管线，重建版未实现' });
@@ -89,6 +119,11 @@ function register(app, { store }) {
   });
 
   // ---- 工具箱（图像修复 / 公众号导入 / 图片去隐私）----
+  // 百宝箱工具清单（渲染层消费 {success, data:[], ocr}）：重建版暂无原版百宝箱工具，
+  // 返回空清单让面板优雅降级，不再报「工具列表加载失败」
+  app.get('/api/toolbox/tools', (_req, res) => {
+    res.json({ success: true, data: [], ocr: null });
+  });
   for (const route of ['/api/toolbox/image-inpaint/batch', '/api/toolbox/privacy/image-redact/batch', '/api/toolbox/article/import-docx', '/api/toolbox/wechat-mp/import-docx']) {
     app.post(route, (_req, res) => {
       res.json({ success: false, error: '工具箱能力依赖原版模型服务（图像修复/OCR/文档解析），重建版未实现' });

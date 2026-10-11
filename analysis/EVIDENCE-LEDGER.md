@@ -265,3 +265,29 @@ CDP（--remote-debugging-port）取证（analysis/tools/cdp-verify.js）：
 | — | 工具目录 | 原版 16 工具 + 上游对齐新增 2（image_reader/file_batch_rename）= 18 | `GET /tools` 断言 |
 
 上游暂不落地项（依赖原厂模型/云服务）：关键词+语义混合检索、知识库术语、动态上下文压缩、图像去水印/打码、word 排版模板体系、OCR 并发、离线模型包。
+
+## 19. 全量 UI 端到端测试与修复（O，2026-10-11，CDP Network 抓取）
+
+方法：应用以 --remote-debugging-port 启动，CDP 挂真实界面（analysis/tools/ui-sweep.mjs / ui-sweep2.mjs），
+逐页点击 + Network 域抓取全部状态码 ≥400 的请求与 Runtime 异常；含问答/任务两种模式的真实输入发送。
+
+### 发现与修复清单
+
+| # | 问题 | 根因 | 修复 | 验证 |
+| --- | --- | --- | --- | --- |
+| 1 | 任务模式发送报「HTTP error! status: 404」 | 渲染层任务链路为 POST /qa/task/executions 创建执行 → GET …/{id}/stream 订阅；后端缺创建端点 | qa.js 实现 POST /qa/task/executions（立即返回 execution_id，后台执行）+ GET …/{id}/stream 事件重放与实时跟随 + cancel 联动 AbortController | UI 真实发送：SENT，0 失败；单测覆盖创建→订阅→终态 |
+| 2 | 百宝箱页「工具列表加载失败」 | 缺 GET /api/toolbox/tools | 返回 {success,data:[],ocr:null}（优雅空态） | 页面点击 0 失败 |
+| 3 | 知识创作成就页白屏崩溃（console: reading 'running'） | 缺 GET /knowledge-activity/overview，组件读 t.status.running 无可选链 | 实现 overview（summary/status/activityDays/folders/lastError 全字段）+ events + run-now | 崩溃消失，页面渲染 |
+| 4 | 知识创作成就二次崩溃（reading 'today'） | overview 缺 summary.{today,last7Days,last30Days} | 补全字段（按 bundle fmt 组件字段面挖掘） | 同上 |
+| 5 | 本地大模型配置页报「检测失败」 | 缺 GET /api/ollama/detect | 返回 {installed:false,running:false}（诚实降级） | 0 失败 |
+| 6 | 离线模型包页报错 | 缺 GET /api/ollama/models/available | 返回空目录列表 | 0 失败 |
+| 7 | MCP 工具页加载失败 | 缺 GET /api/tools/mcp/servers | 返回本地存储清单（默认空） | 0 失败 |
+| 8 | LibreOffice 设置页报错；skill 的 docx 导出前置校验失败 | 缺 GET /libreoffice-status（渲染层路径无 /api 前缀） | 返回 {available:true, path, source}（探测命中本机 25.8） | 0 失败；导出前置校验通过 |
+
+### 终态
+
+- 侧边栏 7 页 + 设置抽屉 13 页逐页点击：**失败请求 0、控制台异常 0**
+- 问答模式真实对话：回答渲染、会话入库
+- 任务模式真实发送：执行创建 → 事件流 → 会话入库
+- 回归：35/35 测试
+

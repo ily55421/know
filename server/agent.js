@@ -157,27 +157,33 @@ async function runChatStream(store, registry, body, res, signal) {
   }
 }
 
-/** 任务模式流（POST /qa/task/stream）：带执行记录与工具事件。 */
-async function runTaskStream(store, registry, executions, body, res, signal) {
-  const sse = new SseWriter(res);
+/** 任务模式核心：事件发射器。emit(type, data) 同时写执行记录与（可选的）SSE 连接。
+ * 传入 existing（路由侧已登记的执行记录）时复用其 id/记录，信号由路由侧的 AbortController 提供。 */
+async function runTaskExecution(store, registry, executions, aborts, body, emit, signal, existing) {
   const query = String(body?.query || '').trim();
-  const executionId = `exec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const record = { execution_id: executionId, status: 'running', created_at: Date.now(), events: [] };
+  const executionId = existing?.execution_id || `exec_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const record = existing || { execution_id: executionId, status: 'running', created_at: Date.now(), events: [] };
   executions.set(executionId, record);
+  let ownController = null;
+  if (!existing) {
+    ownController = new AbortController();
+    aborts.set(executionId, ownController);
+  }
+  signal = signal || ownController?.signal;
 
   const track = (type, data) => {
-    if (!['tool_output_chunk'].includes(type)) record.events.push({ type, data });
+    record.events.push({ type, data });
+    emit(type, data);
   };
 
   try {
-    sse.send('execution_start', { execution_id: executionId, status: 'running' });
     track('execution_start', { execution_id: executionId, status: 'running' });
     if (!query) {
-      sse.send('error', '任务描述不能为空');
+      track('error', '任务描述不能为空');
       record.status = 'failed';
-      return sse.end();
+      return { executionId, record };
     }
-    sse.send('round_start', { round: 1 });
+    sseEmit(emit, 'round_start', { round: 1 });
     track('round_start', { round: 1 });
 
     const folders = Array.isArray(body?.folders) ? body.folders : [];
@@ -195,13 +201,13 @@ async function runTaskStream(store, registry, executions, body, res, signal) {
       signal,
       onDelta: ({ reasoning }) => {
         if (reasoning && body.enable_thinking) {
-          sse.send('reasoning_chunk', { round: 1, chunk: reasoning });
+          sseEmit(emit, 'reasoning_chunk', { round: 1, chunk: reasoning });
           track('reasoning_chunk', { round: 1, chunk: reasoning });
         }
       },
     });
     if (first.reasoning) {
-      sse.send('reasoning_complete', { round: 1, has_content: true });
+      sseEmit(emit, 'reasoning_complete', { round: 1, has_content: true });
       track('reasoning_complete', { round: 1, has_content: true });
     }
 
@@ -209,19 +215,18 @@ async function runTaskStream(store, registry, executions, body, res, signal) {
     let answer = stripToolCall(first.content);
 
     if (call) {
-      const tool = registry.get(call.tool);
-      sse.send('preparing_tools', { round: 1 });
+      sseEmit(emit, 'preparing_tools', { round: 1 });
       track('preparing_tools', { round: 1 });
       const callId = `call_${Date.now()}`;
-      sse.send('calling_tool', { tool_name: call.tool, call_id: callId, round: 1, arguments: call.arguments });
+      sseEmit(emit, 'calling_tool', { tool_name: call.tool, call_id: callId, round: 1, arguments: call.arguments });
       track('calling_tool', { tool_name: call.tool, call_id: callId, round: 1, arguments: call.arguments });
       let result;
       try {
         result = await registry.execute(call.tool, call.arguments);
-        sse.send('tool_result', { tool_name: call.tool, call_id: callId, success: result.success, summary: result.success ? '执行完成' : result.error });
+        sseEmit(emit, 'tool_result', { tool_name: call.tool, call_id: callId, success: result.success, summary: result.success ? '执行完成' : result.error });
         track('tool_result', { tool_name: call.tool, call_id: callId, success: result.success, summary: result.success ? '执行完成' : result.error });
       } catch (error) {
-        sse.send('tool_error', { tool_name: call.tool, call_id: callId, error: error.message });
+        sseEmit(emit, 'tool_error', { tool_name: call.tool, call_id: callId, error: error.message });
         track('tool_error', { tool_name: call.tool, call_id: callId, error: error.message });
         result = { success: false, error: error.message };
       }
@@ -236,28 +241,49 @@ async function runTaskStream(store, registry, executions, body, res, signal) {
       answer = stripToolCall(followup.content) || '（工具执行完成，但模型未给出总结）';
     }
 
-    sse.send('thinking_result', { round: 1 });
+    sseEmit(emit, 'thinking_result', { round: 1 });
     track('thinking_result', { round: 1 });
-    sse.send('answer_start');
-    sse.send('answer_chunk', answer);
+    sseEmit(emit, 'answer_start');
+    sseEmit(emit, 'answer_chunk', answer);
     track('answer_chunk', answer);
-    sse.send('answer_commit');
-    sse.send('complete', { answer, execution_id: executionId });
+    sseEmit(emit, 'answer_commit');
+    sseEmit(emit, 'complete', { answer, execution_id: executionId });
     track('complete', { answer, execution_id: executionId });
     record.status = 'completed';
     record.answer = answer;
-    return sse.end();
+    return { executionId, record };
   } catch (error) {
     record.status = signal?.aborted ? 'cancelled' : 'failed';
-    if (!signal?.aborted) {
-      sse.send('error', error.message || '任务执行失败');
-      track('error', error.message || '任务执行失败');
-    } else {
-      sse.send('cancelled', { execution_id: executionId });
+    if (signal?.aborted) {
+      sseEmit(emit, 'cancelled', { execution_id: executionId });
       track('cancelled', { execution_id: executionId });
+    } else {
+      sseEmit(emit, 'error', error.message || '任务执行失败');
+      track('error', error.message || '任务执行失败');
     }
-    return sse.end();
+    return { executionId, record };
   } finally {
+    if (ownController) aborts.delete(executionId);
+  }
+}
+
+/** SSE 包装：emit 同时写 SSE 与执行记录 */
+function sseEmit(emit, type, data) {
+  if (emit) emit(type, data);
+}
+
+/** 任务模式流（POST /qa/task/stream）：带执行记录与工具事件的直连 SSE。 */
+async function runTaskStream(store, registry, executions, aborts, body, res, signal) {
+  const sse = new SseWriter(res);
+  let sseClosed = false;
+  const emit = (type, data) => {
+    if (sseClosed) return;
+    sse.send(type, data);
+  };
+  try {
+    await runTaskExecution(store, registry, executions, aborts, body, emit, signal);
+  } finally {
+    sseClosed = true;
     sse.end();
   }
 }
@@ -282,4 +308,4 @@ async function generateTitle(store, body) {
   }
 }
 
-module.exports = { runChatStream, runTaskStream, generateTitle, SseWriter };
+module.exports = { runChatStream, runTaskStream, runTaskExecution, generateTitle, SseWriter };

@@ -160,6 +160,24 @@ function register(app, { store, registry }) {
   });
   app.get('/api/ollama/ping', (_req, res) => res.json({ success: false, error: '重建版未集成 Ollama' }));
   app.get('/api/ollama/models/list', (_req, res) => res.json({ success: true, data: { models: [] } }));
+  // 本地大模型面板探测（渲染层消费 data.running/.path）
+  app.get('/api/ollama/detect', (_req, res) => {
+    res.json({ success: true, data: { installed: false, running: false, path: null, version: null } });
+  });
+  // 可下载模型目录（重建版无 Ollama 拉取通道，空列表让面板优雅降级）
+  app.get('/api/ollama/models/available', (_req, res) => {
+    res.json({ success: true, data: [] });
+  });
+  // MCP 服务器清单（渲染层 /api/tools/mcp/servers，消费 data 数组）
+  app.get('/api/tools/mcp/servers', (_req, res) => {
+    res.json({ success: true, data: store.load('mcp', { items: [] }).items });
+  });
+  // 渲染层 skill 导出能力校验（office.docx_* 工具执行前探测，消费 {available}）
+  app.get('/libreoffice-status', (_req, res) => {
+    const { detectSoffice } = require('../core/libreoffice');
+    const info = detectSoffice();
+    res.json({ available: Boolean(info.found), path: info.path || null, source: info.source || null });
+  });
 
   // ---- 系统信息（形态对齐原版：cpu/memory/gpu/platform）----
   app.get('/api/system/hardware', (_req, res) => {

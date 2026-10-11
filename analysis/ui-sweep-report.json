@@ -1,0 +1,122 @@
+{
+  "failedRequests": [],
+  "consoleErrors": [],
+  "report": {
+    "页面/新建会话": {
+      "result": "CLICKED",
+      "fails": []
+    },
+    "页面/skill技能": {
+      "result": "CLICKED",
+      "fails": []
+    },
+    "页面/百宝箱": {
+      "result": "CLICKED",
+      "fails": []
+    },
+    "页面/本地资料学习": {
+      "result": "CLICKED",
+      "fails": []
+    },
+    "页面/文件语义搜索": {
+      "result": "CLICKED",
+      "fails": []
+    },
+    "页面/知识创作成就": {
+      "result": "CLICKED",
+      "fails": []
+    },
+    "页面/个人中心": {
+      "result": "CLICKED",
+      "fails": []
+    },
+    "设置/外观与语言": {
+      "result": "NOT-FOUND",
+      "fails": []
+    },
+    "设置/系统配置": {
+      "result": "NOT-FOUND",
+      "fails": []
+    },
+    "设置/本地大模型配置": {
+      "result": "NOT-FOUND",
+      "fails": []
+    },
+    "设置/三方大模型配置": {
+      "result": "NOT-FOUND",
+      "fails": []
+    },
+    "设置/离线模型包": {
+      "result": "NOT-FOUND",
+      "fails": []
+    },
+    "设置/MCP 工具": {
+      "result": "NOT-FOUND",
+      "fails": []
+    },
+    "设置/LibreOffice": {
+      "result": "NOT-FOUND",
+      "fails": []
+    },
+    "设置/软件诊断": {
+      "result": "NOT-FOUND",
+      "fails": []
+    },
+    "设置/会员配置迁移": {
+      "result": "NOT-FOUND",
+      "fails": []
+    },
+    "设置/推广拉新": {
+      "result": "NOT-FOUND",
+      "fails": []
+    },
+    "设置/关于我们": {
+      "result": "CLICKED",
+      "fails": []
+    },
+    "设置/意见反馈": {
+      "result": "CLICKED",
+      "fails": []
+    },
+    "设置/更新日志": {
+      "result": "CLICKED",
+      "fails": []
+    },
+    "会话/回到新建": {
+      "result": "CLICKED",
+      "fails": []
+    },
+    "会话/切换问答模式": {
+      "result": "CLICKED",
+      "fails": []
+    },
+    "会话/输入": {
+      "result": "TYPED",
+      "fails": []
+    },
+    "会话/发送(问答模式)": {
+      "result": "SENT",
+      "fails": []
+    },
+    "会话/读取回答": {
+      "result": "v3.13.2-recon.4\n新建会话\nskill技能\n百宝箱\n更多\n知识库\n本地资料学习\n文件语义搜索\n知识创作成就\n历史对话\n你好，简单介绍一下你自己\n今天 21:05\n新会话\n今天 21:04\n25125125\n今天 21:05\n你好，简单介绍一下你自己\n今天 20:55\n你好\n今天 20:44\n个人中心\n1/1 页\n你的问题\n你好，简单介绍一下你自己\n21:05:54\nAI知识助手\n\n你好！我是 Knowly，一个本地 AI 知识助手，帮你处理工作目录里的文件和数据。\n\n我能做什么\n\n📄 文件与文档\n\n读取各类文件正文（PDF、PPTX、Word、TXT 等），支持按页、按标题、按字符区间精准定位\n深度分析 Excel 结构（合并单元格、多层表头、公式、隐藏行列等）\n格式转换：docx / pptx / xlsx / html → pdf / txt / csv 等（基于本机 LibreOffice）\n\n🔍 搜索与定位\n\n按关键字递归搜索文件名\n知识库语义搜索与片段检索（需已建立向量索引）\n\n🛠 执行能力\n\n执行 Python 代码片段\n执行本地 Shell 命令（Windows cmd / 类 Unix sh）\n\n🖼 图片\n\n用视觉模型阅读本地图片并回答关于图片的问题\n图片格式转换、AI 生图（部分功能待重建）\n\n📁 文件批量操作\n\n批量重命名（前缀 / 后缀 / 查找替换 / 序号模式，默认先预览不执行）\n使用方式\n\n直接把需求告诉我就行，比如：\n\n\"帮我看下这个 Excel 的表头结构\"\n\"把这份 docx 转成 PDF\"\n\"找一下目录里所有含'报告'",
+      "fails": []
+    },
+    "会话/切换任务模式": {
+      "result": "NOT-FOUND",
+      "fails": []
+    },
+    "会话/任务输入": {
+      "result": "TYPED",
+      "fails": []
+    },
+    "会话/发送(任务模式)": {
+      "result": "SENT",
+      "fails": []
+    },
+    "会话/任务回答": {
+      "result": "v3.13.2-recon.4\n新建会话\nskill技能\n百宝箱\n更多\n知识库\n本地资料学习\n文件语义搜索\n知识创作成就\n历史对话\n你好，简单介绍一下你自己\n今天 21:06\n新会话\n今天 21:04\n25125125\n今天 21:05\n你好，简单介绍一下你自己\n今天 20:55\n你好\n今天 20:44\n个人中心\n1/1 页\n\n最懂你的AI知识助手\n\n当前 Knowly 还不够懂你，建议先添加文件让我学习后，再开始使用。\n去添加\n问答模式\n/\n任务模式\n· 输入框左下角按需切换模式 · 越用越懂你\n问答模式\n附件\n更多选项\n🤖\nAI知识助手\n全部目录\n推荐\n办公学习\n电脑设置\n生活日常\n游戏娱乐\n在我的文档里找答案\n问答模式\n\n在我的知识库里搜索关于「项目汇报」的文档，帮我整理核心要点\n\n文章秒变知识海报\n任务模式\n\n通过文本转长图的技能，把这篇文章总结提炼，做成一张知识海报图\n\n资料、结论一键转发微信、钉钉\n任务模式\n\n给我找一下去年的汇报PPT，源文件发到微信里",
+      "fails": []
+    }
+  }
+}
