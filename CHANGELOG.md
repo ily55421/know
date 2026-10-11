@@ -1,5 +1,25 @@
 # Changelog（重建版）
 
+## [3.13.2-recon.3] — 2026-10-11
+
+### 上游能力对齐（按原版 CHANGELOG 截图清单）
+- **file_converter 真实实现**：经本机 LibreOffice 无头转换（pdf/txt/html/rtf/docx/odt/xlsx/csv/ods/pptx/odp）；
+  自动探测安装路径：env KNOWLY_SOFFICE_PATH → PATH → 注册表（HKLMSOFTWARELibreOfficeUNOInstallPath，
+  值名可含空格）→ 标准路径；独立 UserInstallation 配置目录，不与已打开的 LibreOffice 冲突；
+  本机实测：注册表命中 D:softLibreOffice（25.8），txt→pdf 转换成功（运行中应用 + 单测双验证）
+- **新增 image_reader（图片阅读）**：本地图片交视觉模型解读（对齐上游 v3.14.0 image-reader；需配置支持视觉的模型）
+- **新增 file_batch_rename（文件批量重命名）**：prefix/suffix/replace/sequence 四模式，dry_run 预览默认开，冲突防护（对齐 v3.12.4）
+- **数据备份/恢复**：POST /api/backup/export·import，jszip 打包持久区 JSON，导入后自动刷新缓存（对齐 v3.12.6 全量备份迁移）
+- GET /api/libreoffice/status：探测状态（路径/来源/版本提示）
+
+### 验证
+- 33/33 测试（新增：探测、真实转换、批量重命名、备份往返）
+- 运行中应用真机验证：18 工具目录、探测命中注册表、txt→pdf 转换 14KB PDF 生成
+
+### 验证
+- npm test 通过
+
+
 ## [3.13.2-recon.2] — 2026-10-11
 
 ### 安全与隐私
