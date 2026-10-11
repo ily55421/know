@@ -3,7 +3,7 @@
 /** 系统与配置路由：/health /version /config /cache /directories /api/models /scheduler 通知等。 */
 const os = require('node:os');
 const path = require('node:path');
-const { chatOnce } = require('../llm');
+const { chatOnce, proxyPost } = require('../llm');
 
 const APP_VERSION = '3.13.2';
 
@@ -86,6 +86,26 @@ function register(app, { store, registry }) {
     const models = config.models || {};
     const fallback = require('../data-seed/software-default-models.json');
     const defaultModelId = models.current || fallback?.data?.defaultModelId || 'deepseek-flash';
+    // 三方自定义配置（api_config 面板保存）优先展示
+    if (config.api_config && config.api_config.api_base && config.api_config.api_key) {
+      res.json({
+        success: true,
+        data: {
+          source_type: 'custom',
+          llm: {
+            provider: 'custom',
+            model: config.api_config.llm_model || '',
+            api_base: config.api_config.api_base,
+            api_key_configured: true,
+          },
+          embedding: config.api_config.use_custom_embedding
+            ? { provider: 'custom', model: config.api_config.embedding_model || '', api_base: config.api_config.embedding_api_base || config.api_config.api_base }
+            : (models.embedding || { provider: 'dashscope', model: 'text-embedding-v4', api_base: '' }),
+          vision: models.vision || { provider: 'dashscope', model: 'qwen3-vl-plus', api_base: '' },
+        },
+      });
+      return;
+    }
     res.json({
       success: true,
       data: {
@@ -178,6 +198,102 @@ function register(app, { store, registry }) {
   // 定时任务清单（原版在线观测：GET /scheduler/tasks → {success, data:[...]})
   app.get('/scheduler/tasks', (_req, res) => {
     res.json({ success: true, data: store.load('tasks', { items: [] }).items || [] });
+  });
+
+  // ---- 三方大模型配置面板（渲染层 API 配置页：GET/POST /api/config + POST /api/config/test）----
+  // 形态自 bundle.js 反混淆还原（settings.apiConfigPanel 组件）。
+  const EMPTY_PANEL = {
+    provider: '',
+    custom: {
+      has_api_key: false, api_key: '', api_key_preview: '', api_base: '',
+      llm_model: '', use_custom_embedding: false, embedding_model: '', embedding_api_base: '',
+    },
+  };
+
+  const panelData = (config) => {
+    const p = config.api_config;
+    if (!p || !p.api_base || !p.api_key) return { ...EMPTY_PANEL };
+    const key = String(p.api_key);
+    return {
+      provider: 'custom',
+      custom: {
+        has_api_key: true,
+        api_key: key,
+        api_key_preview: key.length > 8 ? key.slice(0, 4) + '****' + key.slice(-4) : '****',
+        api_base: p.api_base || '',
+        llm_model: p.llm_model || '',
+        use_custom_embedding: Boolean(p.use_custom_embedding),
+        embedding_model: p.embedding_model || '',
+        embedding_api_base: p.embedding_api_base || '',
+      },
+    };
+  };
+
+  app.get('/api/config', (_req, res) => {
+    res.json({ success: true, data: panelData(store.load('config', {})) });
+  });
+
+  app.post('/api/config', (req, res) => {
+    const body = req.body || {};
+    const apiConfig = {
+      provider: 'custom',
+      api_key: String(body.api_key ?? ''),
+      api_base: String(body.api_base ?? ''),
+      llm_model: String(body.llm_model ?? ''),
+      use_custom_embedding: Boolean(body.use_custom_embedding),
+      embedding_model: String(body.embedding_model ?? ''),
+      embedding_api_base: String(body.embedding_api_base ?? ''),
+    };
+    if (body.provider === 'custom' && (!apiConfig.api_key || !apiConfig.api_base)) {
+      return res.json({ success: false, message: 'API 密钥与 API 地址不能为空' });
+    }
+    // 双写：api_config 供面板回显；llm*/api_key/base_url/model 供 llm.js 与 /api/models/current
+    store.update('config', {}, (current) => ({
+      ...current,
+      api_config: apiConfig,
+      api_key: apiConfig.api_key,
+      base_url: apiConfig.api_base,
+      model: apiConfig.llm_model,
+      llm: { provider: 'custom', api_key: apiConfig.api_key, model: apiConfig.llm_model, api_base: apiConfig.api_base },
+      ...(apiConfig.use_custom_embedding ? {
+        embedding: { provider: 'custom', model: apiConfig.embedding_model, api_base: apiConfig.embedding_api_base || apiConfig.api_base },
+      } : {}),
+    }));
+    res.json({ success: true });
+  });
+
+  app.post('/api/config/test', async (req, res) => {
+    const body = req.body || {};
+    const apiKey = String(body.api_key ?? '');
+    const apiBase = String(body.api_base ?? '');
+    const model = String(body.llm_model ?? '');
+    if (!apiKey || !apiBase || !model) {
+      return res.json({ success: false, message: 'API 密钥、API 地址与对话模型均不能为空' });
+    }
+    try {
+      const chat = await proxyPost('/api/openai/chat/completions', {
+        api_key: apiKey, base_url: apiBase, model,
+        messages: [{ role: 'user', content: '回复两个字：连接成功' }],
+        stream: false, max_tokens: 64,
+      });
+      if (!chat?.success) {
+        return res.json({ success: false, message: chat?.error || '对话模型连接失败' });
+      }
+      if (body.test_embedding) {
+        const emb = await proxyPost('/api/openai/embeddings', {
+          api_key: apiKey,
+          base_url: String(body.embedding_api_base || apiBase),
+          model: String(body.embedding_model || ''),
+          input: ['连接测试'],
+        });
+        if (!emb?.success) {
+          return res.json({ success: false, message: `对话模型正常，但向量模型连接失败: ${emb?.error || '未知错误'}` });
+        }
+      }
+      return res.json({ success: true });
+    } catch (error) {
+      return res.json({ success: false, message: error.message });
+    }
   });
 
   // ---- LibreOffice 探测状态（file_converter 依赖）----

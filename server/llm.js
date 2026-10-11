@@ -125,4 +125,4 @@ async function chatStream(store, { messages, temperature = 0.7, maxTokens = 4096
   return { content: full, reasoning };
 }
 
-module.exports = { chatOnce, chatStream, loadModelConfig, PROXY_BASE };
+module.exports = { chatOnce, chatStream, loadModelConfig, proxyPost, PROXY_BASE };

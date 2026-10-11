@@ -328,6 +328,42 @@ test('启动门端点形态（agents 数组 / membership / device-transfer）', 
   });
 });
 
+test('三方模型配置面板：/api/config 读写 + /api/config/test（形态自 bundle 反混淆）', async () => {
+  await withServer(async (base) => {
+    // 初始为空面板
+    const empty = await json(base, 'GET', '/api/config');
+    assert.equal(empty.body.data.provider, '');
+    assert.equal(empty.body.data.custom.has_api_key, false);
+
+    // 保存（渲染层 j() 载荷）
+    const save = await json(base, 'POST', '/api/config', {
+      provider: 'custom', api_key: 'k-test', api_base: 'http://127.0.0.1:18888/v1', llm_model: 'm1', use_custom_embedding: false,
+    });
+    assert.equal(save.body.success, true);
+
+    // 回显面板（api_key 原样回填、preview 打码）
+    const loaded = await json(base, 'GET', '/api/config');
+    assert.equal(loaded.body.data.provider, 'custom');
+    assert.equal(loaded.body.data.custom.api_key, 'k-test');
+    assert.equal(loaded.body.data.custom.api_base, 'http://127.0.0.1:18888/v1');
+    assert.equal(loaded.body.data.custom.llm_model, 'm1');
+    assert.ok(loaded.body.data.custom.api_key_preview.includes('****'));
+
+    // 保存后 /api/models/current 反映 custom，且 llm.js 兼容字段同步写入
+    const models = await json(base, 'GET', '/api/models/current');
+    assert.equal(models.body.data.source_type, 'custom');
+    assert.equal(models.body.data.llm.provider, 'custom');
+    assert.equal(models.body.data.llm.model, 'm1');
+
+    // 测试连接：未配置 LLM 代理时经主进程代理失败 → 仍应返回 {success:false, message}（而非 500）
+    const test = await json(base, 'POST', '/api/config/test', {
+      provider: 'custom', api_key: 'x', api_base: 'http://127.0.0.1:9', llm_model: 'x', test_embedding: false,
+    });
+    assert.equal(test.body.success, false);
+    assert.ok(test.body.message, '失败时应带 message');
+  });
+});
+
 test('未实现端点返回 404 且带说明', async () => {
   await withServer(async (base) => {
     const res = await fetch(base + '/definitely/not/exist');
