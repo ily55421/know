@@ -1,0 +1,33 @@
+{
+  "appId": "recon.knowly.portable",
+  "productName": "Knowly",
+  "directories": {
+    "output": "release",
+    "buildResources": "public"
+  },
+  "files": [
+    "electron/**/*",
+    "server/**/*",
+    "public/**/*",
+    "data-seed/**/*",
+    "package.json"
+  ],
+  "asarUnpack": [
+    "node_modules/pdfjs-dist/**"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "public/favicon.ico",
+    "signExecutable": false
+  },
+  "portable": {
+    "artifactName": "Knowly-Portable-${version}.exe"
+  },
+  "npmRebuild": false,
+  "compression": "maximum"
+}

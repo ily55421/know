@@ -9,6 +9,10 @@ const DATA_SUBDIR = 'data';
 const STORE_PACKAGE_PREFIX = 'A693CA02.Knowly_';
 
 function getSharedDataRoot() {
+  // [重建版适配] 便携数据根优先（打包版由 main.js 注入 exe 所在目录的 data/）
+  if (process.env.KNOWLY_SHARED_DATA_ROOT) {
+    return process.env.KNOWLY_SHARED_DATA_ROOT;
+  }
   if (!app.isPackaged) {
     return path.join(app.getAppPath(), 'vector_store');
   }

@@ -381,3 +381,22 @@ CDP（--remote-debugging-port）取证（analysis/tools/cdp-verify.js）：
   0 失败请求、0 控制台异常
 - 边界重申：会员为本地重建版自有状态（模型费用由用户自有网关承担），不涉及原厂云端服务
 
+## 26. 便携 exe 打包（recon.12，O，2026-10-11）
+
+- 产物：release/Knowly-Portable-<version>.exe（electron-builder portable，x64，约 126MB）；
+  项目根 Knowly-Portable.exe 为正式使用副本；桌面快捷方式「Knowly (Recon).lnk」→ 项目根 exe，
+  图标携带 favicon.ico
+- 包内适配（[重建版适配] 标记 diff）：
+  1. main.js：打包版数据根 = PORTABLE_EXECUTABLE_DIR/data（userData=data/user-data、
+     后端 KNOWLY_DATA_ROOT=data/backend、设备根 KNOWLY_SHARED_DATA_ROOT=data），
+     首次运行自动从 %APPDATA%/KnowlyRecon/backend 迁移历史数据
+  2. python-server.js：包内无 findme.exe 时改用**进程内后端**（require server/index.js，
+     轮询 /health 就绪）——绝无 taskkill findme.exe（那是原版应用后端）
+  3. app-lifecycle.js：自动更新器归入遥测门（便携包绝不检查原厂 OSS 更新）
+  4. device-id.js：KNOWLY_SHARED_DATA_ROOT 优先
+  5. server/index.js：进程内模式 EADDRINUSE 不 process.exit（避免连带杀掉主进程）
+- 打包验证（独立启动 Knowly-Portable.exe）：进程内后端 28099 健康 200、代理 28081、
+  数据落在项目 data/（用户模型配置经迁移完整保留）、示例应用在位、原版应用进程不受影响
+- 已知限制：本次构建因 win-unpacked/resources/app.asar 被残留进程句柄锁定（EBUSY），
+  exe 未内嵌产品图标——桌面快捷方式已携带 favicon.ico 图标；重启后重新构建即可嵌入
+

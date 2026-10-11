@@ -72,11 +72,16 @@ const server = app.listen(PORT, HOST, () => {
 
 server.on('error', (error) => {
   if (error.code === 'EADDRINUSE') {
-    console.error(`ERROR:    端口 ${PORT} 已被占用（原版 Knowly 可能正在运行）。请先退出原版应用，或设置 PORT 环境变量换端口。`);
+    console.error(`ERROR:    端口 ${PORT} 已被占用（原版 Knowly 或另一实例可能正在运行）。`);
+    // [重建版适配] 进程内模式（打包版）不能 process.exit——那会杀掉整个应用，让主进程超时报错
+    if (process.env.KNOWLY_IN_PROCESS === '1') {
+      console.error('ERROR:    进程内模式：后端启动失败，主进程将按启动超时处理。');
+      return;
+    }
     process.exit(1);
   }
   console.error('ERROR:    服务启动失败:', error);
-  process.exit(1);
+  if (process.env.KNOWLY_IN_PROCESS !== '1') process.exit(1);
 });
 
 process.on('SIGINT', () => {

@@ -1,5 +1,26 @@
 # Changelog（重建版）
 
+## [3.13.2-recon.12] — 2026-10-11
+
+### 新功能：免安装便携 exe + 桌面快捷方式
+- 产物：release/Knowly-Portable-<version>.exe（约 126MB，单文件免安装）；项目根 Knowly-Portable.exe 为使用副本；
+  桌面快捷方式「Knowly (Recon).lnk」→ 项目根 exe（携带应用图标）
+- **数据根随 exe 所在目录**：data/user-data（Electron 存储）+ data/backend（会话/配置/应用等）
+  + data/data（设备 ID）；放入项目根即为「数据保存在当前项目目录」；首次运行自动从
+  %APPDATA%/KnowlyRecon/backend 迁移历史数据
+- 包内适配（标记 diff）：打包版无 findme.exe 时改用**进程内 Node 后端**（主进程直接起 express，
+  轮询 /health 就绪，与原版启动握手同构）；绝无 taskkill findme.exe；自动更新器归入遥测门；
+  进程内模式端口占用不再连带退出应用
+
+### 验证
+- 独立启动 Knowly-Portable.exe：进程内后端 28099 健康 200、代理 28081、数据目录按预期生成，
+  用户模型配置经迁移完整保留、示例应用在位、原版应用进程不受影响
+- 39/39 测试
+
+### 验证
+- npm test 通过
+
+
 ## [3.13.2-recon.11] — 2026-10-11
 
 ### 界面：隐藏会员购买入口

@@ -101,6 +101,13 @@ analysis/                  REA 证据链
 
 **自定义 API Key**：设置里配置后经 `后端 → 主进程代理(28081) → 你的端点` 调用；已用本地 Mock 端点实测 Key 传递（Bearer 头）与 SSE 流式回包（台账 §16）。
 
+## 便携版 exe（免安装）
+
+- 项目根的 Knowly-Portable.exe 双击即可独立启动：进程内后端 + 界面，无需 Node/Python 环境
+- **数据根随 exe 所在目录**：data/user-data（Electron 存储）+ data/backend（会话/配置/示例应用）
+  ——把 exe 放在哪个目录，数据就保存在哪个目录（当前即项目根），更新/替换 exe 不影响数据
+- 桌面快捷方式「Knowly (Recon)」指向项目根 exe；重新打包：npx electron-builder --win portable --config electron-builder.json
+- 与原版并存：绝不 taskkill 原版进程、绝不检查原厂更新（遥测门）
 ## 数据存储（版本更新不丢失）
 
 | 数据 | 位置 | 更新/替换程序目录 |

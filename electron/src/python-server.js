@@ -13,6 +13,10 @@ let pythonProcess = null;
 function killResidualPythonProcess() {
   let cmd;
   if (process.platform === 'win32') {
+    // [重建版适配] 便携重建版绝不能 taskkill findme.exe——那是原版应用的后端进程
+    if (app.isPackaged && !fs.existsSync(path.join(process.resourcesPath, 'python-server', 'findme.exe'))) {
+      return Promise.resolve();
+    }
     cmd = app.isPackaged
       ? 'taskkill /F /T /IM findme.exe'
       : 'wmic process where "name=\'python.exe\' and CommandLine like \'%api.py%\'" delete';
@@ -27,6 +31,37 @@ function killResidualPythonProcess() {
       // err 通常是"没有匹配进程"，属正常情况，静默忽略；timeout 时同样触发此回调
       resolve();
     });
+  });
+}
+
+// [重建版适配] 进程内后端：便携包内不含 findme.exe，直接在主进程启动 Node 后端（express），
+// 轮询 /health 就绪后回调——对主进程其余流程而言与原版"启动子进程并等就绪"完全同构。
+function startInProcessBackend() {
+  return new Promise((resolve, reject) => {
+    try {
+      process.env.KNOWLY_IN_PROCESS = '1';
+      require('../../server/index.js');
+    } catch (error) {
+      reject(error);
+      return;
+    }
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      const req = require('node:http').get(`${API_BASE_URL}/health`, (res) => {
+        res.resume();
+        if (res.statusCode === 200) {
+          clearInterval(timer);
+          log.info(`[重建版适配] 进程内后端已就绪: ${API_BASE_URL}`);
+          resolve(API_BASE_URL);
+        }
+      });
+      req.on('error', () => { /* 未就绪，继续轮询 */ });
+      req.setTimeout(1500, () => req.destroy());
+      if (Date.now() - startedAt > 60000) {
+        clearInterval(timer);
+        reject(new Error('进程内后端启动超时 (60秒)'));
+      }
+    }, 400);
   });
 }
 
@@ -56,11 +91,12 @@ async function startPythonServer() {
         // 生产环境：使用打包的可执行文件
         const executableName = process.platform === 'win32' ? 'findme.exe' : 'findme';
         pythonExecutable = path.join(process.resourcesPath, 'python-server', executableName);
-        
+
         // 检查可执行文件是否存在
         if (!fs.existsSync(pythonExecutable)) {
-          log.error(`Python可执行文件不存在: ${pythonExecutable}`);
-          reject(new Error(`Python可执行文件不存在: ${pythonExecutable}`));
+          // [重建版适配] 便携重建版不含 findme.exe → 在主进程内直接启动 Node 后端
+          log.info('[重建版适配] 包内无 findme.exe，改用进程内 Node 后端');
+          startInProcessBackend().then(resolve).catch(reject);
           return;
         }
       } else {

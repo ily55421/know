@@ -185,15 +185,18 @@ async function handleAppReady() {
   startSchedulerNotificationPolling();
 
   // 延迟初始化自动更新，避免干扰窗口加载
-  setTimeout(() => {
-    try {
-      const { initAutoUpdater } = require('./auto-updater');
-      initAutoUpdater();
-      log.info(`[${new Date().toISOString()}] 自动更新已初始化`);
-    } catch (error) {
-      log.error(`[${new Date().toISOString()}] 初始化自动更新失败: ${error.message}`);
-    }
-  }, 5000);
+  // [重建版适配] 更新器也归入遥测门：其更新源是原厂 OSS，便携重建版绝不检查/安装原厂更新
+  if (telemetryEnabled) {
+    setTimeout(() => {
+      try {
+        const { initAutoUpdater } = require('./auto-updater');
+        initAutoUpdater();
+        log.info(`[${new Date().toISOString()}] 自动更新已初始化`);
+      } catch (error) {
+        log.error(`[${new Date().toISOString()}] 初始化自动更新失败: ${error.message}`);
+      }
+    }, 5000);
+  }
 }
 
 // 处理Python服务器启动

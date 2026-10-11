@@ -1,5 +1,8 @@
 node_modules/
 vector_store/data/
+data/
+release/
+Knowly-Portable.exe
 *.log
 analysis/extracted/
 analysis/tools/node_modules/
