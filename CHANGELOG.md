@@ -1,5 +1,18 @@
 # Changelog（重建版）
 
+## [3.13.2-recon.6] — 2026-10-11
+
+### 修复：设置-LibreOffice 面板不显示已安装状态
+- 根因：面板状态判定为 t.success && t.available（bundle 反混淆 @~7,021,804），
+  /libreoffice-status 首版缺 success:true → 恒判定未安装
+- /libreoffice-status 补 success:true + version_hint；新增 POST /libreoffice-help-install（引导式安装，
+  已安装返回检测路径，未安装返回下载/KNOWLY_SOFFICE_PATH 引导）
+- UI 真机验证：面板切换为「已安装」成功态；36/36 测试（含面板契约回归用例）
+
+### 验证
+- npm test 通过
+
+
 ## [3.13.2-recon.5] — 2026-10-11
 
 ### 修复：全量 UI 端到端测试发现的问题（CDP 逐页抓取，详见台账 §19）
