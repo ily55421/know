@@ -1,5 +1,24 @@
 # Changelog（重建版）
 
+## [3.13.2-recon.2] — 2026-10-11
+
+### 安全与隐私
+- 隐私审计：确认原版常驻遥测面（EMAS 统计/配额同步/云端技能与模型同步/阿里云 RUM 前端监控/OSS 更新检查），重建版逐项处置并默认零云外呼（遥测门 KNOWLY_ENABLE_TELEMETRY，台账 §15）
+- 运行时实证：全栈 6 进程 0 条非回环连接
+
+### 数据持久化
+- 后端数据迁至 %APPDATA%/KnowlyRecon/backend-data，程序目录更新不丢数据；旧 vector_store/data 自动迁移
+- 修复：数据根误用 ready 前 getPath('userData') 导致短暂写入原版目录（已核实未触碰原版数据，已清理）
+
+### 功能与验证
+- 自定义 API Key 全链路实测通过（本地 Mock 端点：Key 传递/SSE 流式/标题生成，台账 §16）
+- 功能齐全度矩阵落档 docs/FEATURE-MATRIX.md（16 工具：3 完整/3 简化/10 诚实降级）
+- 回归测试 29/29；CDP 端到端 PASS；UI 版本号显示 v3.13.2-recon.x
+
+### 验证
+- npm test 通过
+
+
 版本方案：`<上游版本>-recon.<n>`。`3.13.2-recon.1` 表示基于原版 findme/Knowly v3.13.2 的第 1 个重建发布。
 上游版本号始终对应还原基线（见 `analysis/EVIDENCE-LEDGER.md` §14 升级参考基线）。
 
