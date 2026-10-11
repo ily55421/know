@@ -1,0 +1,513 @@
+@alicloud/mp-db-service	3.0.2	MPServerless DB Service
+@alicloud/mp-function-service	3.0.0	MPServerless Function Service
+@alicloud/mpserverless-core	3.1.1	MPServerless JavaScript SDK Core
+@alicloud/mpserverless-node-file-service	1.2.3	MPServerless Function File Service
+@alicloud/mpserverless-node-sdk	1.2.5	Ant MPServerless JavaScript SDK for FaaS Egg Framework
+@alicloud/mpserverless-node-user-service	1.2.3	MPServerless Function User Service
+@ant-design/colors	8.0.1	Color palettes calculator of Ant Design
+@ant-design/cssinjs	2.1.2	Component level cssinjs resolution for antd
+@ant-design/cssinjs-utils	2.1.2	A cssinjs util library to support Ant Design (antd) and its 
+@ant-design/fast-color	3.0.1	fast and small color class
+@ant-design/icons	6.2.5	
+@ant-design/icons-svg	4.4.2	Abstract nodes for ant design icons.
+@ant-design/react-slick	2.0.0	 React port of slick carousel
+@antfu/install-pkg	1.1.0	Install package programmatically.
+@babel/runtime	7.29.7	babel's modular runtime helpers
+@braintree/sanitize-url	7.1.1	A url sanitizer
+@chevrotain/cst-dts-gen	11.0.3	Generates type definitions for Chevrotain CST nodes
+@chevrotain/gast	11.0.3	Grammar AST structure for Chevrotain Parsers
+@chevrotain/regexp-to-ast	11.0.3	Parses a Regular Expression and outputs an AST
+@chevrotain/types	11.0.3	Type Signatures and API Website for Chevrotain
+@chevrotain/utils	11.0.3	common utilities
+@emotion/hash	0.8.0	A MurmurHash2 implementation
+@emotion/unitless	0.7.5	An object of css properties that don't accept values with un
+@iconify/types	2.0.0	Types for Iconify data
+@iconify/utils	3.1.0	Common functions for working with Iconify icon sets used by 
+@mermaid-js/parser	0.6.3	MermaidJS parser
+@rc-component/async-validator	6.0.0	Validate form asynchronous
+@rc-component/cascader	1.16.1	cascade select ui component for react
+@rc-component/checkbox	2.0.0	checkbox ui component for react
+@rc-component/collapse	1.2.0	rc-collapse ui component for react
+@rc-component/color-picker	3.1.1	React Color Picker
+@rc-component/context	2.0.2	React way perf context selector
+@rc-component/dialog	1.9.0	dialog ui component for react
+@rc-component/drawer	1.4.2	drawer component for react
+@rc-component/dropdown	1.0.2	dropdown ui component for react
+@rc-component/form	1.8.5	React Form Component
+@rc-component/image	1.9.0	React easy to use image component
+@rc-component/input	1.3.1	React input component
+@rc-component/input-number	1.6.2	React input-number component
+@rc-component/mentions	1.9.0	React Mentions
+@rc-component/menu	1.3.1	menu ui component for react
+@rc-component/mini-decimal	1.1.4	Lite lib to only support decimal add calculation
+@rc-component/motion	1.3.3	React lifecycle controlled motion library
+@rc-component/mutate-observer	2.0.1	React MutateObserver Component
+@rc-component/notification	2.0.7	notification ui component for react
+@rc-component/overflow	1.0.1	Auto collapse box when overflow
+@rc-component/pagination	1.3.0	pagination ui component for react
+@rc-component/picker	1.10.0	React date & time picker
+@rc-component/portal	2.2.1	React Portal Component
+@rc-component/progress	1.0.2	progress ui component for react
+@rc-component/qrcode	2.0.0	base abstract trigger component for react
+@rc-component/rate	1.0.1	React Star Rate Component
+@rc-component/resize-observer	1.1.2	Resize observer for React
+@rc-component/segmented	1.3.0	React segmented controls used in ant.design
+@rc-component/select	1.7.1	React Select
+@rc-component/slider	1.0.1	Slider UI component for React
+@rc-component/steps	1.2.2	steps ui component for react
+@rc-component/switch	1.0.3	switch ui component for react
+@rc-component/table	1.10.2	table ui component for react
+@rc-component/tabs	1.9.1	tabs ui component for react
+@rc-component/tooltip	1.4.0	React Tooltip
+@rc-component/tour	2.4.0	React tour Component
+@rc-component/tree	1.3.2	tree ui component for react
+@rc-component/tree-select	1.10.0	tree-select ui component for react
+@rc-component/trigger	3.9.1	base abstract trigger component for react
+@rc-component/upload	1.1.1	upload ui component for react
+@rc-component/util	1.11.1	Common Utils For React Component
+@rc-component/virtual-list	1.2.0	React Virtual List Component
+@types/d3	7.4.3	TypeScript definitions for d3
+@types/d3-array	3.2.2	TypeScript definitions for d3-array
+@types/d3-axis	3.0.6	TypeScript definitions for d3-axis
+@types/d3-brush	3.0.6	TypeScript definitions for d3-brush
+@types/d3-chord	3.0.6	TypeScript definitions for d3-chord
+@types/d3-color	3.1.3	TypeScript definitions for d3-color
+@types/d3-contour	3.0.6	TypeScript definitions for d3-contour
+@types/d3-delaunay	6.0.4	TypeScript definitions for d3-delaunay
+@types/d3-dispatch	3.0.7	TypeScript definitions for d3-dispatch
+@types/d3-drag	3.0.7	TypeScript definitions for d3-drag
+@types/d3-dsv	3.0.7	TypeScript definitions for d3-dsv
+@types/d3-ease	3.0.2	TypeScript definitions for d3-ease
+@types/d3-fetch	3.0.7	TypeScript definitions for d3-fetch
+@types/d3-force	3.0.10	TypeScript definitions for d3-force
+@types/d3-format	3.0.4	TypeScript definitions for d3-format
+@types/d3-geo	3.1.0	TypeScript definitions for d3-geo
+@types/d3-hierarchy	3.1.7	TypeScript definitions for d3-hierarchy
+@types/d3-interpolate	3.0.4	TypeScript definitions for d3-interpolate
+@types/d3-path	3.1.1	TypeScript definitions for d3-path
+@types/d3-polygon	3.0.2	TypeScript definitions for d3-polygon
+@types/d3-quadtree	3.0.6	TypeScript definitions for d3-quadtree
+@types/d3-random	3.0.3	TypeScript definitions for d3-random
+@types/d3-scale	4.0.9	TypeScript definitions for d3-scale
+@types/d3-scale-chromatic	3.1.0	TypeScript definitions for d3-scale-chromatic
+@types/d3-selection	3.0.11	TypeScript definitions for d3-selection
+@types/d3-shape	3.1.7	TypeScript definitions for d3-shape
+@types/d3-time	3.0.4	TypeScript definitions for d3-time
+@types/d3-time-format	4.0.3	TypeScript definitions for d3-time-format
+@types/d3-timer	3.0.2	TypeScript definitions for d3-timer
+@types/d3-transition	3.0.9	TypeScript definitions for d3-transition
+@types/d3-zoom	3.0.8	TypeScript definitions for d3-zoom
+@types/debug	4.1.12	TypeScript definitions for debug
+@types/estree	1.0.8	TypeScript definitions for estree
+@types/estree-jsx	1.0.5	TypeScript definitions for estree-jsx
+@types/geojson	7946.0.16	TypeScript definitions for geojson
+@types/hast	3.0.4	TypeScript definitions for hast
+@types/katex	0.16.7	TypeScript definitions for katex
+@types/mdast	4.0.4	TypeScript definitions for mdast
+@types/ms	2.1.0	TypeScript definitions for ms
+@types/node	24.9.2	TypeScript definitions for node
+@types/prismjs	1.26.6	TypeScript definitions for prismjs
+@types/trusted-types	2.0.7	TypeScript definitions for trusted-types
+@types/unist	3.0.3	TypeScript definitions for unist
+@uiw/copy-to-clipboard	1.0.20	Copy to clipboard.
+@uiw/react-markdown-preview	5.1.5	React component preview markdown text in web browser. The mi
+@uiw/react-md-editor	4.0.11	A markdown editor with preview, implemented with React.js an
+@ungap/structured-clone	1.3.0	A structuredClone polyfill
+accepts	2.0.0	Higher-level content negotiation
+acorn	8.15.0	ECMAScript parser
+ajv	8.20.0	Another JSON Schema Validator
+ajv-formats	2.1.1	Format validation for Ajv v7+
+antd	6.4.4	An enterprise-class UI design language and React components 
+any-promise	1.3.0	Resolve any installed ES6 compatible promise
+argparse	2.0.1	CLI arguments parser. Native port of python's argparse.
+asynckit	0.4.0	Minimal async jobs utility library, with streams support
+atomically	1.7.0	Read and write files atomically and reliably.
+axios	1.13.1	Promise based HTTP client for the browser and node.js
+bail	2.0.2	Throw a given error
+bcp-47-match	2.0.3	Match BCP 47 language tags with language ranges per RFC 4647
+body-parser	2.2.0	Node.js body parsing middleware
+boolbase	1.0.0	two functions: One that returns true, one that returns false
+builder-util-runtime	9.3.1	
+bytes	3.1.2	Utility to parse a string bytes to bytes and vice-versa
+call-bind-apply-helpers	1.0.2	Helper functions around Function call/apply/bind, for use in
+call-bound	1.0.4	Robust call-bound JavaScript intrinsics, using `call-bind` a
+ccount	2.0.1	Count how often a character (or substring) is used in a stri
+character-entities	2.0.2	Map of named character references
+character-entities-html4	2.1.0	Map of named character references from HTML 4
+character-entities-legacy	3.0.0	List of legacy HTML named character references that don’t ne
+character-reference-invalid	2.0.1	Map of invalid numeric character references to their replace
+chevrotain	11.0.3	Chevrotain is a high performance fault tolerant javascript p
+chevrotain-allstar	0.3.1	LL(*) lookahead strategy for the Chevrotain parser library
+clsx	2.1.1	A tiny (239B) utility for constructing className strings con
+combined-stream	1.0.8	A stream that emits multiple other streams one after another
+comma-separated-tokens	2.0.3	Parse and stringify comma-separated tokens
+commander	8.3.0	the complete solution for node.js command-line programs
+compute-scroll-into-view	3.1.1	The engine that powers scroll-into-view-if-needed
+conf	10.2.0	Simple config handling for your app or module
+confbox	0.1.8	Compact and high quality YAML, TOML, JSONC and JSON5 parsers
+content-disposition	1.0.0	Create and parse Content-Disposition header
+content-type	1.0.5	Create and parse HTTP Content-Type header
+cookie	0.7.1	HTTP server cookie parsing and serialization
+cookie-signature	1.2.2	Sign and unsign cookies
+copy-to	2.0.1	copy an object's properties to another object
+core-util-is	1.0.2	The `util.is*` functions introduced in Node v0.12.
+cose-base	1.0.3	Core module for compound spring embedder based layout styles
+css-selector-parser	3.3.0	Powerful and compliant CSS selector parser.
+csstype	3.1.3	Strict TypeScript and Flow types for style based on MDN data
+cytoscape	3.33.1	Graph theory (a.k.a. network) library for analysis and visua
+cytoscape-cose-bilkent	4.1.0	The CoSE layout for Cytoscape.js by Bilkent with enhanced co
+cytoscape-fcose	2.2.0	The fCoSE layout for Cytoscape.js by Bilkent with fast compo
+d3	7.9.0	Data-Driven Documents
+d3-array	3.2.4	Array manipulation, ordering, searching, summarizing, etc.
+d3-axis	3.0.0	Displays automatic reference lines for scales.
+d3-brush	3.0.0	Select a one- or two-dimensional region using the mouse or t
+d3-chord	3.0.1	Visualize relationships or network flow with an aestheticall
+d3-color	3.1.0	Color spaces! RGB, HSL, Cubehelix, Lab and HCL (Lch).
+d3-contour	4.0.2	Compute contour polygons using marching squares.
+d3-delaunay	6.0.4	Compute the Voronoi diagram of a set of two-dimensional poin
+d3-dispatch	3.0.1	Register named callbacks and call them with arguments.
+d3-drag	3.0.0	Drag and drop SVG, HTML or Canvas using mouse or touch input
+d3-dsv	3.0.1	A parser and formatter for delimiter-separated values, such 
+d3-ease	3.0.1	Easing functions for smooth animation.
+d3-fetch	3.0.1	Convenient parsing for Fetch.
+d3-force	3.0.0	Force-directed graph layout using velocity Verlet integratio
+d3-format	3.1.0	Format numbers for human consumption.
+d3-geo	3.1.1	Shapes and calculators for spherical coordinates.
+d3-hierarchy	3.1.2	Layout algorithms for visualizing hierarchical data.
+d3-interpolate	3.0.1	Interpolate numbers, colors, strings, arrays, objects, whate
+d3-path	3.1.0	Serialize Canvas path commands to SVG.
+d3-polygon	3.0.1	Operations for two-dimensional polygons.
+d3-quadtree	3.0.1	Two-dimensional recursive spatial subdivision.
+d3-random	3.0.1	Generate random numbers from various distributions.
+d3-sankey	0.12.3	Visualize flow between nodes in a directed acyclic network.
+d3-scale	4.0.2	Encodings that map abstract data to visual representation.
+d3-scale-chromatic	3.1.0	Sequential, diverging and categorical color schemes.
+d3-selection	3.0.0	Data-driven DOM manipulation: select elements and join them 
+d3-shape	1.3.7	Graphical primitives for visualization, such as lines and ar
+d3-time	3.1.0	A calculator for humanity’s peculiar conventions of time.
+d3-time-format	4.1.0	A JavaScript time formatter and parser inspired by strftime 
+d3-timer	3.0.1	An efficient queue capable of managing thousands of concurre
+d3-transition	3.0.1	Animated transitions for D3 selections.
+d3-zoom	3.0.0	Pan and zoom SVG, HTML or Canvas using mouse or touch input.
+dagre-d3-es	7.0.13	
+dayjs	1.11.19	2KB immutable date time library alternative to Moment.js wit
+debounce-fn	4.0.0	Debounce a function
+debug	4.4.1	Lightweight debugging utility for Node.js and the browser
+decode-named-character-reference	1.2.0	Decode named character references
+default-user-agent	1.0.0	Default user agent string for nodejs http request
+delaunator	5.0.1	An incredibly fast JavaScript library for Delaunay triangula
+delayed-stream	1.0.0	Buffers events from a stream until you are ready to handle t
+depd	2.0.0	Deprecate all the things
+dequal	2.0.3	A tiny (304B to 489B) utility for check for deep equality
+destroy	1.2.0	destroy a stream if possible
+devlop	1.1.0	Do things in development and nothing otherwise
+digest-header	1.1.0	Digest access authentication header helper
+direction	2.0.1	Detect the direction of text: left-to-right, right-to-left, 
+docx	9.5.1	Easily generate .docx files with JS/TS with a nice declarati
+dompurify	3.3.0	DOMPurify is a DOM-only, super-fast, uber-tolerant XSS sanit
+dot-prop	6.0.1	Get, set, or delete a property from a nested object using a 
+dunder-proto	1.0.1	If available, the `Object.prototype.__proto__` accessor and 
+echarts	6.0.0	Apache ECharts is a powerful, interactive charting and data 
+ee-first	1.1.1	return the first event in a set of ee/event pairs
+electron-log	5.4.1	Just a simple logging module for your Electron application
+electron-store	8.2.0	Simple data persistence for your Electron app or module - Sa
+electron-updater	6.6.2	Cross platform updater for electron applications
+encodeurl	2.0.0	Encode a URL to a percent-encoded form, excluding already-en
+end-of-stream	1.4.5	Call a callback when a readable/writable/duplex stream has c
+entities	6.0.1	Encode & decode XML and HTML entities with ease & speed
+env-paths	2.2.1	Get paths for storing things like data, config, cache, etc
+es-define-property	1.0.1	`Object.defineProperty`, but not IE 8's broken one.
+es-errors	1.3.0	A simple cache for a few of the JS Error constructors.
+es-object-atoms	1.1.1	ES Object-related atoms: Object, ToObject, RequireObjectCoer
+es-set-tostringtag	2.1.0	A helper to optimistically set Symbol.toStringTag, when poss
+escape-html	1.0.3	Escape string for use in HTML
+escape-string-regexp	5.0.0	Escape RegExp special characters
+estree-util-is-identifier-name	3.0.0	Check if something can be an ecmascript (javascript) identif
+etag	1.8.1	Create simple HTTP ETags
+express	5.1.0	Fast, unopinionated, minimalist web framework
+extend	3.0.2	Port of jQuery.extend for node.js and the browser
+extend-shallow	2.0.1	Extend an object with the properties of additional objects. 
+fast-deep-equal	3.1.3	Fast deep equal
+fast-uri	3.0.6	Dependency-free RFC 3986 URI toolbox
+finalhandler	2.1.0	Node.js final http responder
+find-up	3.0.0	Find a file or directory by walking up parent directories
+follow-redirects	1.15.9	HTTP and HTTPS modules that follow redirects.
+form-data	4.0.6	A library to create readable "multipart/form-data" streams. 
+formstream	1.5.1	A multipart/form-data encoded stream, helper for file upload
+forwarded	0.2.0	Parse HTTP X-Forwarded-For header
+fresh	2.0.0	HTTP response freshness testing
+fs-extra	10.1.0	fs-extra contains methods that aren't included in the vanill
+function-bind	1.1.2	Implementation of Function.prototype.bind
+get-intrinsic	1.3.0	Get and robustly cache all JS language-level intrinsics at f
+get-proto	1.0.1	Robustly get the [[Prototype]] of an object
+github-slugger	2.0.0	Generate a slug just like GitHub does for markdown headings.
+gopd	1.2.0	`Object.getOwnPropertyDescriptor`, but accounts for IE's bro
+graceful-fs	4.2.11	A drop-in replacement for fs, making various improvements.
+hachure-fill	0.5.2	Fill a polygon with lines 
+has-symbols	1.1.0	Determine if the JS environment has Symbol support. Supports
+has-tostringtag	1.0.2	Determine if the JS environment has `Symbol.toStringTag` sup
+hash.js	1.1.7	Various hash functions that could be run by both browser and
+hasown	2.0.4	A robust, ES3 compatible, "has own property" predicate.
+hast-util-from-dom	5.0.1	hast utility to create a tree from the DOM
+hast-util-from-html	2.0.3	hast utility to parse from HTML
+hast-util-from-html-isomorphic	2.0.0	hast utility that turns HTML into a syntax tree (while being
+hast-util-from-parse5	8.0.3	hast utility to transform from a `parse5` AST
+hast-util-has-property	3.0.0	hast utility to check if a node has a property
+hast-util-heading-rank	3.0.0	hast utility to get the rank (or depth, level) of headings
+hast-util-is-element	3.0.0	hast utility to check if a node is a (certain) element
+hast-util-parse-selector	3.1.1	hast utility to create an element from a simple CSS selector
+hast-util-raw	9.1.0	hast utility to reparse a tree
+hast-util-select	6.0.4	hast utility for `querySelector`, `querySelectorAll`, and `m
+hast-util-to-html	9.0.5	hast utility to serialize to HTML
+hast-util-to-jsx-runtime	2.3.6	hast utility to transform to preact, react, solid, svelte, v
+hast-util-to-parse5	8.0.0	hast utility to transform to a `parse5` AST
+hast-util-to-string	3.0.1	hast utility to get the plain-text value of a node
+hast-util-to-text	4.0.2	hast utility to get the plain-text value of a node according
+hast-util-whitespace	3.0.0	hast utility to check if a node is inter-element whitespace
+hastscript	9.0.1	hast utility to create trees
+html-parse-stringify	3.0.1	Parses well-formed HTML (meaning all tags closed) into an AS
+html-url-attributes	3.0.1	Map of URL attributes in HTML
+html-void-elements	3.0.0	List of HTML void tag names
+http-errors	2.0.0	Create HTTP error objects
+humanize-ms	1.2.1	transform humanize time to ms
+i18next	26.3.1	i18next internationalization framework
+iconv-lite	0.6.3	Convert character encodings in pure javascript.
+immediate	3.0.6	A cross browser microtask library
+inherits	2.0.4	Browser-friendly inheritance fully compatible with standard 
+inline-style-parser	0.2.4	An inline style parser.
+internmap	1.0.1	Map and Set with automatic key interning
+ipaddr.js	1.9.1	A library for manipulating IPv4 and IPv6 addresses in JavaSc
+is-alphabetical	2.0.1	Check if a character is alphabetical
+is-alphanumerical	2.0.1	Check if a character is alphanumerical
+is-decimal	2.0.1	Check if a character is decimal
+is-extendable	0.1.1	Returns true if a value is any of the object types: array, r
+is-hexadecimal	2.0.1	Check if a character is hexadecimal
+is-mobile	5.0.0	Check if mobile browser.
+is-obj	2.0.0	Check if a value is an object
+is-plain-obj	4.1.0	Check if a value is a plain object
+is-promise	4.0.0	Test whether an object looks like a promises-a+ promise
+isarray	1.0.0	Array#isArray for older browsers
+js-yaml	4.1.0	YAML 1.2 parser and serializer
+json-schema-traverse	1.0.0	Traverse JSON Schema passing each schema object to callback
+json-schema-typed	7.0.3	JSONSchema TypeScript definitions.
+json2mq	0.2.0	Generate media query string from JSON or javascript object
+jsonfile	6.1.0	Easily read/write JSON files.
+jszip	3.10.1	Create, read and edit .zip files with JavaScript http://stua
+katex	0.16.25	Fast math typesetting for the web.
+khroma	2.1.0	A collection of functions for manipulating CSS colors, inspi
+langium	3.3.1	A language engineering tool for the Language Server Protocol
+layout-base	1.0.2	Basic layout model and some utilities for Cytoscape.js layou
+lazy-val	1.0.5	
+lie	3.3.0	A basic but performant promise implementation
+linkify-it	5.0.0	Links recognition library with FULL unicode support
+locate-path	3.0.0	Get the first path that exists on disk of multiple paths
+lodash-es	4.17.21	Lodash exported as ES modules.
+lodash.escaperegexp	4.1.2	The lodash method `_.escapeRegExp` exported as a module.
+lodash.isequal	4.5.0	The Lodash method `_.isEqual` exported as a module.
+longest-streak	3.1.0	Count the longest repeating streak of a substring
+markdown-it	14.1.0	Markdown-it - modern pluggable markdown parser.
+markdown-it-multimd-table	4.2.3	Multimarkdown table syntax plugin for markdown-it markdown p
+markdown-table	3.0.4	Generate a markdown (GFM) table
+marked	16.4.2	A markdown parser built for speed
+math-intrinsics	1.1.0	ES Math-related intrinsics and helpers, robustly cached.
+mdast-util-find-and-replace	3.0.2	mdast utility to find and replace text in a tree
+mdast-util-from-markdown	2.0.2	mdast utility to parse markdown
+mdast-util-gfm	3.1.0	mdast extension to parse and serialize GFM (GitHub Flavored 
+mdast-util-gfm-autolink-literal	2.0.1	mdast extension to parse and serialize GFM autolink literals
+mdast-util-gfm-footnote	2.1.0	mdast extension to parse and serialize GFM footnotes
+mdast-util-gfm-strikethrough	2.0.0	mdast extension to parse and serialize GFM strikethrough
+mdast-util-gfm-table	2.0.0	mdast extension to parse and serialize GFM tables
+mdast-util-gfm-task-list-item	2.0.0	mdast extension to parse and serialize GFM task list items
+mdast-util-math	3.0.0	mdast extension to parse and serialize math
+mdast-util-mdx-expression	2.0.1	mdast extension to parse and serialize MDX (or MDX.js) expre
+mdast-util-mdx-jsx	3.2.0	mdast extension to parse and serialize MDX or MDX.js JSX
+mdast-util-mdxjs-esm	2.0.1	mdast extension to parse and serialize MDX.js ESM (import/ex
+mdast-util-phrasing	4.1.0	mdast utility to check if a node is phrasing content
+mdast-util-to-hast	13.2.0	mdast utility to transform to hast
+mdast-util-to-markdown	2.1.2	mdast utility to serialize markdown
+mdast-util-to-string	4.0.0	mdast utility to get the plain text content of a node
+mdurl	2.0.0	URL utilities for markdown-it
+media-typer	1.1.0	Simple RFC 6838 media type parser and formatter
+merge-descriptors	2.0.0	Merge objects using their property descriptors
+mermaid	11.12.1	Markdown-ish syntax for generating flowcharts, mindmaps, seq
+micromark	4.0.2	small commonmark compliant markdown parser with positional i
+micromark-core-commonmark	2.0.3	The CommonMark markdown constructs
+micromark-extension-gfm	3.0.0	micromark extension to support GFM (GitHub Flavored Markdown
+micromark-extension-gfm-autolink-literal	2.1.0	micromark extension to support GFM autolink literals
+micromark-extension-gfm-footnote	2.1.0	micromark extension to support GFM footnotes
+micromark-extension-gfm-strikethrough	2.1.0	micromark extension to support GFM strikethrough
+micromark-extension-gfm-table	2.1.1	micromark extension to support GFM tables
+micromark-extension-gfm-tagfilter	2.0.0	micromark extension to support GFM tagfilter
+micromark-extension-gfm-task-list-item	2.1.0	micromark extension to support GFM task list items
+micromark-extension-math	3.1.0	micromark extension to support math (`$C_L$`)
+micromark-factory-destination	2.0.1	micromark factory to parse destinations (found in resources,
+micromark-factory-label	2.0.1	micromark factory to parse labels (found in media, definitio
+micromark-factory-space	2.0.1	micromark factory to parse markdown space (found in lots of 
+micromark-factory-title	2.0.1	micromark factory to parse markdown titles (found in resourc
+micromark-factory-whitespace	2.0.1	micromark factory to parse markdown whitespace (found in lot
+micromark-util-character	2.1.1	micromark utility to handle character codes
+micromark-util-chunked	2.0.1	micromark utility to splice and push with giant arrays
+micromark-util-classify-character	2.0.1	micromark utility to classify whether a character is whitesp
+micromark-util-combine-extensions	2.0.1	micromark utility to combine syntax or html extensions
+micromark-util-decode-numeric-character-reference	2.0.2	micromark utility to decode numeric character references
+micromark-util-decode-string	2.0.1	micromark utility to decode markdown strings
+micromark-util-encode	2.0.1	micromark utility to encode dangerous html characters
+micromark-util-html-tag-name	2.0.1	micromark utility with list of html tag names
+micromark-util-normalize-identifier	2.0.1	micromark utility normalize identifiers (as found in referen
+micromark-util-resolve-all	2.0.1	micromark utility to resolve subtokens
+micromark-util-sanitize-uri	2.0.1	micromark utility to sanitize urls
+micromark-util-subtokenize	2.1.0	micromark utility to tokenize subtokens
+micromark-util-symbol	2.0.1	micromark utility with symbols
+micromark-util-types	2.0.2	micromark utility with a couple of typescript types
+mime	2.6.0	A comprehensive library for mime-type mapping
+mime-db	1.52.0	Media Type Database
+mime-types	3.0.1	The ultimate javascript content-type utility.
+mimic-fn	3.1.0	Make a function mimic another one
+mind-elixir	5.3.7	Mind elixir is a free open source mind map core.
+minimalistic-assert	1.0.1	minimalistic-assert ===
+minimist	1.2.8	parse argument options
+mkdirp	0.5.6	Recursively mkdir, like `mkdir -p`
+mlly	1.8.0	Missing ECMAScript module utils for Node.js
+ms	2.1.3	Tiny millisecond conversion utility
+mz	2.7.0	modernize node.js to current ECMAScript standards
+nanoid	5.1.6	A tiny (118 bytes), secure URL-friendly unique string ID gen
+negotiator	1.0.0	HTTP content negotiation
+node-hex	1.0.1	Pretty-prints a Buffer
+nth-check	2.1.1	Parses and compiles CSS nth-checks to highly optimized funct
+object-assign	4.1.1	ES2015 `Object.assign()` ponyfill
+object-inspect	1.13.4	string representations of objects in node and the browser
+on-finished	2.4.1	Execute a callback when a request closes, finishes, or error
+once	1.4.0	Run a function exactly one time
+onetime	5.1.2	Ensure a function is only called once
+openai	6.7.0	The official TypeScript library for the OpenAI API
+os-name	1.0.3	Get the name of the current operating system. Example: OS X 
+osx-release	1.1.0	Get the name and version of a OS X release from the Darwin v
+p-limit	2.3.0	Run multiple promise-returning & async functions with limite
+p-locate	3.0.0	Get the first fulfilled promise that satisfies the provided 
+p-try	2.2.0	`Start a promise chain
+package-manager-detector	1.6.0	Package manager detector
+pako	1.0.11	zlib port to javascript - fast, modularized, with browser su
+parameter	3.7.0	A parameter verify tools.
+parse-entities	4.0.2	Parse HTML character references
+parse-numeric-range	1.3.0	Takes a string, such as "1,2,3-10,5-8" and turns it into an 
+parse5	7.3.0	HTML parser and serializer.
+parseurl	1.3.3	parse a url with memoization
+path-data-parser	0.1.0	Yet another SVG path parser. This one's tiny
+path-exists	3.0.0	Check if a path exists
+path-to-regexp	8.3.0	Express style path to RegExp utility
+pathe	2.0.3	Universal filesystem path utils
+pause-stream	0.0.11	a ThroughStream that strictly buffers all readable events wh
+pkg-types	1.3.1	Node.js utilities and TypeScript definitions for `package.js
+pkg-up	3.1.0	Find the closest package.json file
+points-on-curve	0.2.0	Estimate points on a bezier curve or a set of connexted bezi
+points-on-path	0.2.1	Estimate points on a SVG path
+process-nextick-args	2.0.1	process.nextTick but always with args
+property-information	7.1.0	Info on the properties and attributes of the web platform
+proxy-addr	2.0.7	Determine address of proxied request
+proxy-from-env	1.1.0	Offers getProxyForUrl to get the proxy URL for a URL, respec
+pump	3.0.3	pipe streams together and close all of them if one of them c
+punycode.js	2.3.1	A robust Punycode converter that fully complies to RFC 3492 
+qrcode.react	4.2.0	React component to generate QR codes
+qs	6.14.0	A querystring parser that supports nesting and arrays, with 
+range-parser	1.2.1	Range header field string parser
+raw-body	3.0.1	Get and validate the raw body of a readable stream.
+react-i18next	17.0.8	Internationalization for react done right. Using the i18next
+react-is	18.3.1	Brand checking of React Elements.
+react-markdown	9.0.3	React component to render markdown
+readable-stream	2.3.8	Streams3, a user-land copy of the stream library from Node.j
+refractor	4.9.0	Lightweight, robust, elegant virtual syntax highlighting usi
+regenerator-runtime	0.13.11	Runtime for Regenerator-compiled generator and async functio
+rehype	13.0.2	HTML processor powered by plugins part of the unified collec
+rehype-attr	3.0.3	New syntax to add attributes to Markdown.
+rehype-autolink-headings	7.1.0	rehype plugin to add links to headings
+rehype-ignore	2.0.3	Ignore content display via HTML comments, Shown in GitHub re
+rehype-katex	7.0.1	rehype plugin to transform inline and block math with KaTeX
+rehype-parse	9.0.1	rehype plugin to parse HTML
+rehype-prism-plus	2.0.0	rehype plugin to highlight code blocks in HTML with Prism (v
+rehype-raw	7.0.0	rehype plugin to reparse the tree (and raw nodes)
+rehype-rewrite	4.0.4	Rewrite element with rehype.
+rehype-slug	6.0.0	rehype plugin to add `id` attributes to headings
+rehype-stringify	10.0.1	rehype plugin to serialize HTML
+remark-gfm	4.0.1	remark plugin to support GFM (autolink literals, footnotes, 
+remark-github-blockquote-alert	1.3.1	Alerts are a Markdown extension based on the blockquote synt
+remark-math	6.0.0	remark plugin to parse and stringify math
+remark-parse	11.0.0	remark plugin to add support for parsing markdown input
+remark-rehype	11.1.2	remark plugin that turns markdown into HTML to support rehyp
+remark-stringify	11.0.0	remark plugin to add support for serializing markdown
+require-from-string	2.0.2	Require module from string
+robust-predicates	3.0.2	Fast robust predicates for computational geometry
+roughjs	4.6.6	Create graphics using HTML Canvas or SVG with a hand-drawn, 
+router	2.2.0	Simple middleware-style router
+rw	1.3.3	Now stdin and stdout are files.
+safe-buffer	5.1.2	Safer Node.js Buffer API
+safer-buffer	2.1.2	Modern Buffer API polyfill without footguns
+sax	1.4.1	An evented streaming XML parser in JavaScript
+scroll-into-view-if-needed	3.1.0	Ponyfill for upcoming Element.scrollIntoView() APIs like scr
+semver	7.7.2	The semantic version parser used by npm.
+send	1.2.0	Better streaming static file server with Range and condition
+serve-static	2.2.0	Serve static files
+setimmediate	1.0.5	A shim for the setImmediate efficient script yielding API
+setprototypeof	1.2.0	A small polyfill for Object.setprototypeof
+side-channel	1.1.0	Store information about any JS value in a side channel. Uses
+side-channel-list	1.0.0	Store information about any JS value in a side channel, usin
+side-channel-map	1.0.1	Store information about any JS value in a side channel, usin
+side-channel-weakmap	1.0.2	Store information about any JS value in a side channel. Uses
+space-separated-tokens	2.0.2	Parse and stringify space separated tokens
+statuses	2.0.1	HTTP status utility
+string_decoder	1.1.1	The string_decoder module from Node core
+string-convert	0.2.1	String convertions
+stringify-entities	4.0.4	Serialize (encode) HTML character references
+style-to-js	1.1.17	Parses CSS inline style to JavaScript object (camelCased).
+style-to-object	1.0.9	Parse CSS inline style to JavaScript object.
+stylis	4.4.0	A Light–weight CSS Preprocessor
+thenify	3.3.1	Promisify a callback-based function
+thenify-all	1.6.0	Promisifies all the selected functions in an object
+throttle-debounce	5.0.2	Throttle and debounce functions.
+through	2.3.8	simplified stream construction
+tiny-typed-emitter	2.1.0	Fully type-checked EventEmitter
+tinyexec	1.0.2	A minimal library for executing processes in Node
+toidentifier	1.0.1	Convert a string of words to a JavaScript identifier
+trim-lines	3.0.1	Remove spaces and tabs around line-breaks
+trough	2.2.0	`trough` is middleware
+ts-dedent	2.2.0	TypeScript package which smartly trims and strips indentatio
+tslib	1.14.1	Runtime library for TypeScript helper functions
+type-fest	2.19.0	A collection of essential TypeScript types
+type-is	2.0.1	Infer the content-type of a request.
+uc.micro	2.1.0	Micro subset of unicode data files for markdown-it projects.
+ufo	1.6.1	URL utils for humans
+undici-types	7.16.0	A stand-alone types package for Undici
+unescape	1.0.1	Convert HTML entities to HTML characters, e.g. `&gt;` conver
+unified	11.0.5	parse, inspect, transform, and serialize content through syn
+unist-util-filter	5.0.1	unist utility to create a new tree with nodes that pass a fi
+unist-util-find-after	5.0.0	unist utility to find a node after another node
+unist-util-is	6.0.0	unist utility to check if a node passes a test
+unist-util-position	5.0.0	unist utility to get the position of a node
+unist-util-remove-position	5.0.0	unist utility to remove positions from a tree
+unist-util-stringify-position	4.0.0	unist utility to serialize a node, position, or point as a h
+unist-util-visit	5.0.0	unist utility to visit nodes
+unist-util-visit-parents	6.0.1	unist utility to recursively walk over nodes, with ancestral
+universalify	2.0.1	Make a callback- or promise-based function support both prom
+unpipe	1.0.0	Unpipe a stream from all destinations
+urllib	2.44.0	Help in opening URLs (mostly HTTP) in a complex world — basi
+use-sync-external-store	1.6.0	Backwards compatible shim for React's useSyncExternalStore. 
+util-deprecate	1.0.2	The Node.js `util.deprecate()` function with browser support
+utility	1.18.0	A collection of useful utilities.
+uuid	11.1.0	RFC9562 UUIDs
+vary	1.1.2	Manipulate the HTTP Vary header
+vfile	6.0.3	Virtual file format for text processing
+vfile-location	5.0.3	vfile utility to convert between positional (line and column
+vfile-message	4.0.2	vfile utility to create a virtual message
+void-elements	3.1.0	Array of "void elements" defined by the HTML specification.
+vscode-jsonrpc	8.2.0	A json rpc implementation over streams
+vscode-languageserver	9.0.1	Language server implementation for node
+vscode-languageserver-protocol	3.17.5	VSCode Language Server Protocol implementation
+vscode-languageserver-textdocument	1.0.12	A simple text document implementation for Node LSP servers
+vscode-languageserver-types	3.17.5	Types used by the Language server for node
+vscode-uri	3.0.8	The URI implementation that is used by VS Code and its exten
+web-namespaces	2.0.1	Map of web namespaces
+win-release	1.1.1	Get the name of a Windows version from the release number: 5
+wrappy	1.0.2	Callback wrapping utility
+xml	1.0.1	Fast and simple xml generator. Supports attributes, CDATA, e
+xml-js	1.6.11	A convertor between XML text and Javascript object / JSON te
+zrender	6.0.0	A lightweight graphic library providing 2d draw for Apache E
+zwitch	2.0.4	Handle values based on a property

@@ -1,0 +1,6 @@
+node_modules/
+vector_store/data/
+*.log
+analysis/extracted/
+analysis/tools/node_modules/
+samples/
