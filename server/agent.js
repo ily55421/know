@@ -15,12 +15,64 @@
  */
 
 const { chatOnce, chatStream } = require('./llm');
+const fs = require('node:fs');
+const path = require('node:path');
+const { parseText } = require('./core/loaders/text');
 
-const TOOL_SYSTEM_PROMPT = `你可以使用以下工具来完成任务。需要调用工具时，仅输出一个如下格式的 JSON 代码块（不要有其他文字）：
-\`\`\`tool_call
-{"tool": "工具名", "arguments": { ...入参... }}
-\`\`\`
-可用工具及入参说明会在用户消息后附上。若无需工具，直接用 Markdown 回答。`;
+const TEXT_ATTACH_EXTS = new Set(['.txt', '.md', '.markdown', '.json', '.csv', '.log', '.html', '.htm', '.xml', '.yaml', '.yml', '.ini', '.cfg', '.conf', '.js', '.ts', '.py', '.java', '.c', '.cpp', '.h', '.css', '.sql', '.sh', '.bat', '.toml', '.env']);
+const IMAGE_ATTACH_EXTS = /\.(png|jpe?g|webp|gif|bmp)$/i;
+
+/**
+ * 消费 selected_files（拖拽/附件按钮提供的本地路径）：
+ * 文本类文件读入上下文（编码回退与原版一致），图片提示可用 image_reader，其余标注元信息。
+ * 总量截断 50k 字符、单文件 20k，避免撑爆上下文。
+ */
+function readFileAttachments(selectedFiles, { perFileLimit = 20000, totalLimit = 50000 } = {}) {
+  const items = Array.isArray(selectedFiles) ? selectedFiles : [];
+  const parts = [];
+  let total = 0;
+  for (const item of items) {
+    const p = typeof item === 'string' ? item : (item && (item.path || item.file_path)) || '';
+    if (!p) continue;
+    const ext = path.extname(p).toLowerCase();
+    let stat = null;
+    try {
+      stat = fs.statSync(p);
+    } catch {
+      parts.push(`- ${p}（文件不存在或不可读）`);
+      continue;
+    }
+    if (stat.isDirectory()) {
+      parts.push(`- ${p}（目录）`);
+      continue;
+    }
+    if (IMAGE_ATTACH_EXTS.test(ext)) {
+      parts.push(`- [图片附件] ${p}（${Math.max(1, Math.round(stat.size / 1024))}KB；如需查看内容可调用 image_reader 工具）`);
+      continue;
+    }
+    if (!TEXT_ATTACH_EXTS.has(ext)) {
+      parts.push(`- [附件] ${p}（${Math.max(1, Math.round(stat.size / 1024))}KB，${ext || '无扩展名'}，未读取内容）`);
+      continue;
+    }
+    if (total >= totalLimit) {
+      parts.push(`- ${p}（已达附件总量上限，未读取）`);
+      continue;
+    }
+    try {
+      const { text } = parseText(p);
+      const clipped = text.slice(0, Math.min(perFileLimit, totalLimit - total));
+      total += clipped.length;
+      parts.push(`- [文本附件] ${p}：\n${clipped}${text.length > clipped.length ? '\n…（已截断）' : ''}`);
+    } catch (error) {
+      parts.push(`- ${p}（读取失败: ${error.message}）`);
+    }
+  }
+  return parts.length ? `\n\n[用户附加的本地文件]\n${parts.join('\n')}` : '';
+}
+
+const TOOL_SYSTEM_PROMPT = '你可以使用以下工具来完成任务。需要调用工具时，仅输出一个如下格式的 JSON 代码块（不要有其他文字）：\n'
+  + '```tool_call\n{"tool": "工具名", "arguments": { ...入参... }}\n```\n'
+  + '可用工具及入参说明会在用户消息后附上。若无需工具，直接用 Markdown 回答。';
 
 function extractToolCall(text) {
   const match = text.match(/```tool_call\s*([\s\S]*?)```/);
@@ -39,7 +91,7 @@ function stripToolCall(text) {
 }
 
 /** 构建 messages：系统提示 + 历史 + 当前问题（含工作目录与工具目录摘要） */
-function buildMessages({ query, history = [], customPrompt, toolCatalog, folders }) {
+function buildMessages({ query, history = [], customPrompt, toolCatalog, folders, selectedFiles }) {
   const messages = [];
   const sysParts = ['你是 Knowly（一个本地 AI 知识助手），请用与用户一致的语言、以 Markdown 回答。'];
   if (customPrompt) sysParts.push(`用户自定义提示：${customPrompt}`);
@@ -51,6 +103,8 @@ function buildMessages({ query, history = [], customPrompt, toolCatalog, folders
     }
   }
   let userContent = query;
+  const attachments = readFileAttachments(selectedFiles);
+  if (attachments) userContent += attachments;
   if (toolCatalog?.length) {
     userContent += `\n\n[可用工具目录]\n${toolCatalog.map((t) => `- ${t.name}（${t.display_name}）：${t.description}；入参：${JSON.stringify(t.parameters)}`).join('\n')}\n${TOOL_SYSTEM_PROMPT}`;
   }
@@ -100,6 +154,7 @@ async function runChatStream(store, registry, body, res, signal) {
       history: body.history,
       customPrompt: body.custom_prompt,
       folders,
+      selectedFiles: body.selected_files,
       toolCatalog: registry.catalog().filter((t) => t.name !== 'ask_user'),
     });
 
@@ -193,6 +248,7 @@ async function runTaskExecution(store, registry, executions, aborts, body, emit,
       customPrompt: body.custom_prompt,
       agentName: body.agent_name,
       folders,
+      selectedFiles: body.selected_files,
       toolCatalog: registry.catalog().filter((t) => !['ask_user', 'compact_context'].includes(t.name)),
     });
 
@@ -308,4 +364,4 @@ async function generateTitle(store, body) {
   }
 }
 
-module.exports = { runChatStream, runTaskStream, runTaskExecution, generateTitle, SseWriter };
+module.exports = { runChatStream, runTaskStream, runTaskExecution, generateTitle, SseWriter, readFileAttachments };

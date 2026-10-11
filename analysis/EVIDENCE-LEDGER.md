@@ -301,3 +301,18 @@ CDP（--remote-debugging-port）取证（analysis/tools/cdp-verify.js）：
   已安装时返回检测路径，未安装时返回下载与 KNOWLY_SOFFICE_PATH 引导）
 - 验证：UI 真机读取面板文本为「已安装」成功态（一键安装按钮消失）；36/36 测试含契约回归用例
 
+## 21. 对话窗口拖拽附件（recon.7，原版无此能力）
+
+- 事实核对：原版渲染层的 drop 处理仅存在于百宝箱图像工具页（getPathForFile 的唯一包装
+  mwt() 只被 image-redact/image-inpaint/photo-collage 消费）；聊天输入框原版不支持拖拽。
+- 实现（不改 bundle.js）：index.html 注入 electron/dist/knowly-drop-shim.js ——
+  1) 文档级 dragover/drop：拖入文件经 electronAPI.getPathForFile 取路径，渲染「指定文件」附件条
+    （可单个移除）；百宝箱等自带处理的页面 preventDefault 后自动让位；无聊天输入框的页面不接管
+  2) fetch 包装：/qa/chat/stream、/qa/task/executions、/qa/task/stream 发送时把附件路径
+    合并进请求体 selected_files（与「附件」按钮产生的字符串数组同构，去重、上限 20）
+- 后端：agent.js readFileAttachments 消费 selected_files —— 文本类按原版编码回退链读取入上下文
+  （单文件 20k / 总量 50k 截断），图片提示可用 image_reader，其余标注元信息；问答与任务两链路接入
+- 验证（CDP 真机）：合成 drop 事件链（悬浮提示出现）；附件路径注入 → 附件条渲染 →
+  问答模式发送 → 请求体捕获 selected_files=[真实路径] → 模型回答正确引用文件内容（口令命中）
+  → 发送后附件条自动清空；37/37 测试（新增 readFileAttachments 单测：utf8/gbk/图片/缺失容错）
+

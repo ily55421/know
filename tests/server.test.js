@@ -398,6 +398,28 @@ test('LibreOffice 面板契约：/libreoffice-status 必须带 success（面板�
   });
 });
 
+test('拖拽附件：readFileAttachments 文本读取/图片提示/缺失容错', async () => {
+  const { readFileAttachments } = require('../server/agent');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'knowly-attach-'));
+  const txt = path.join(dir, 'notes.txt');
+  fs.writeFileSync(txt, '机密口令是 KNOWLY-2026', 'utf8');
+  const gbk = path.join(dir, 'gbk.md');
+  fs.writeFileSync(gbk, Buffer.from('中文内容：密钥 ALPHA-77', 'utf8'));
+  const img = path.join(dir, 'pic.png');
+  fs.writeFileSync(img, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  const missing = path.join(dir, 'ghost.txt'); // 从未创建
+
+  const block = readFileAttachments([txt, gbk, img, missing]);
+  assert.ok(block.includes('[用户附加的本地文件]'));
+  assert.ok(block.includes('机密口令是 KNOWLY-2026'), '应含 utf8 文本内容');
+  assert.ok(block.includes('中文内容：密钥 ALPHA-77'), '应含 gbk 解码内容');
+  assert.ok(block.includes('image_reader'), '图片应提示 image_reader 工具');
+  assert.ok(block.includes('文件不存在或不可读'), '缺失文件应容错');
+
+  // 空数组不产生附件块
+  assert.equal(readFileAttachments([]), '');
+});
+
 test('未实现端点返回 404 且带说明', async () => {
   await withServer(async (base) => {
     const res = await fetch(base + '/definitely/not/exist');
