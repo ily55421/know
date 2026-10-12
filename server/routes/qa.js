@@ -93,6 +93,8 @@ function register(app, { store, registry }) {
         status: record.status,
         created_at: record.created_at,
         answer: record.answer || null,
+        // 推理全文：渲染层任务消息不自带 thinkingContent，前端注入模块据此内联展示思考过程
+        thinking: record.thinking || null,
       },
     });
   });

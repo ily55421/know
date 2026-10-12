@@ -256,14 +256,25 @@ async function runTaskExecution(store, registry, executions, aborts, body, emit,
       toolCatalog: registry.catalog().filter((t) => !['ask_user', 'compact_context'].includes(t.name)),
     });
 
+    // [重建版适配] 任务回答改为**边生成边发** answer_chunk：
+    // 上游中断时渲染层已能累积到部分文本（此前一次性发送 → 中断则 B 为空 → UI 显示"任务已停止"，
+    // 即用户反馈的"莫名中断"）。若最终内容实为工具调用，则用 answer_revoke 撤回（渲染层原生支持）。
+    sseEmit(emit, 'answer_start');
+    let streamedAnswer = '';
     const first = await chatStream(store, {
       messages,
       signal,
-      onDelta: ({ reasoning }) => {
+      onDelta: ({ reasoning, content }) => {
         // 思考链始终透传（reasoning_chunk，带 round，由 UI 折叠展示）
         if (reasoning) {
+          record.thinking = (record.thinking || '') + reasoning; // 供 /qa/task/executions/{id} 返回（内联思考展示）
           sseEmit(emit, 'reasoning_chunk', { round: 1, chunk: reasoning });
           track('reasoning_chunk', { round: 1, chunk: reasoning });
+        }
+        // 正文增量实时下发（可被 answer_revoke 撤回）
+        if (content) {
+          streamedAnswer += content;
+          sseEmit(emit, 'answer_chunk', content);
         }
       },
     });
@@ -276,6 +287,8 @@ async function runTaskExecution(store, registry, executions, aborts, body, emit,
     let answer = stripToolCall(first.content);
 
     if (call) {
+      // 撤回流式期间误显的工具调用代码块，工具总结后再流式下发最终答案
+      sseEmit(emit, 'answer_revoke');
       sseEmit(emit, 'preparing_tools', { round: 1 });
       track('preparing_tools', { round: 1 });
       const callId = `call_${Date.now()}`;
@@ -291,21 +304,31 @@ async function runTaskExecution(store, registry, executions, aborts, body, emit,
         track('tool_error', { tool_name: call.tool, call_id: callId, error: error.message });
         result = { success: false, error: error.message };
       }
-      const followup = await chatOnce(store, {
+      sseEmit(emit, 'answer_start');
+      let followupText = '';
+      const followup = await chatStream(store, {
         messages: [
           ...messages,
           { role: 'assistant', content: first.content },
-          { role: 'user', content: `工具 ${call.tool} 的执行结果（JSON）：\n${JSON.stringify(result).slice(0, 60000)}\n请基于该结果用 Markdown 回答用户。` },
+          { role: 'user', content: `工具 ${call.tool} 的执行结果（JSON）：\n${JSON.stringify(result).slice(0, 60000)}\n请基于该结果用 Markdown 回答用户，不要输出工具调用。` },
         ],
         signal,
+        onDelta: ({ content }) => {
+          if (content) {
+            followupText += content;
+            sseEmit(emit, 'answer_chunk', content);
+          }
+        },
       });
-      answer = stripToolCall(followup.content) || '（工具执行完成，但模型未给出总结）';
+      answer = stripToolCall(followup.content || followupText) || '（工具执行完成，但模型未给出总结）';
     }
 
     sseEmit(emit, 'thinking_result', { round: 1 });
     track('thinking_result', { round: 1 });
-    sseEmit(emit, 'answer_start');
-    sseEmit(emit, 'answer_chunk', answer);
+    // 正文已在上方流式下发（answer_start/answer_chunk/answer_revoke），此处仅补工具路径与提交
+    if (call) {
+      sseEmit(emit, 'answer_chunk', answer);
+    }
     track('answer_chunk', answer);
     sseEmit(emit, 'answer_commit');
     sseEmit(emit, 'complete', { answer, execution_id: executionId });

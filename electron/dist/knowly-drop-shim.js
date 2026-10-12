@@ -272,7 +272,23 @@
         }
       }
     } catch (e) { /* 不影响原请求 */ }
-    return originalFetch.call(this, input, init);
+    var result = originalFetch.call(this, input, init);
+    // 任务创建响应 → 启动思考轮询（把推理过程内联到对话气泡）
+    try {
+      var url2 = typeof input === 'string' ? input : (input && input.url) || '';
+      var method2 = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+      if (/\/qa\/task\/executions$/.test(url2) && method2 === 'POST') {
+        return result.then(function (res) {
+          try {
+            res.clone().json().then(function (j) {
+              if (j && j.success && j.execution_id) watchTaskExecution(j.execution_id);
+            }).catch(function () { /* ignore */ });
+          } catch (e) { /* ignore */ }
+          return res;
+        });
+      }
+    } catch (e) { /* 不影响原请求 */ }
+    return result;
   };
 
   // 通知 toast（antd message 若不可用则用轻量实现）
@@ -290,11 +306,116 @@
     setTimeout(function () { el.remove(); }, 2600);
   }
 
+  // ==================== 任务模式：思考过程内联展示 ====================
+  // 背景：渲染层任务模式的消息不携带 thinkingContent，推理只出现在「查看完整过程」抽屉（隔离面板）。
+  // 本模块在任务执行期间轮询后端执行记录，把推理全文以官方同款样式（chat-panel__thinking-block）
+  // 注入到最后一条 assistant 气泡内，实现"思考过程在对话框中展示"。
+  var taskWatch = { executionId: null, timer: null, thinkingText: '' };
+
+  function ensureThinkingBlock() {
+    var bubbles = document.querySelectorAll('.chat-panel__bubble-content');
+    if (!bubbles.length) return null;
+    var bubble = bubbles[bubbles.length - 1];
+    var existing = bubble.querySelector(':scope > .knowly-recon-thinking');
+    if (existing) return existing;
+
+    var block = document.createElement('div');
+    block.className = 'chat-panel__thinking-block knowly-recon-thinking';
+    var header = document.createElement('div');
+    header.className = 'chat-panel__thinking-block-header';
+    header.style.cursor = 'pointer';
+    header.style.display = 'flex';
+    header.style.alignItems = 'center';
+    header.style.gap = '6px';
+    var label = document.createElement('span');
+    label.textContent = '深度思考';
+    var streaming = document.createElement('span');
+    streaming.className = 'chat-panel__thinking-block-streaming';
+    streaming.textContent = '思考中…';
+    var arrow = document.createElement('span');
+    arrow.textContent = '▾';
+    arrow.style.marginLeft = 'auto';
+    arrow.style.fontSize = '12px';
+    header.appendChild(label);
+    header.appendChild(streaming);
+    header.appendChild(arrow);
+    var content = document.createElement('div');
+    content.className = 'chat-panel__thinking-block-content';
+    content.style.whiteSpace = 'pre-wrap';
+    header.addEventListener('click', function () {
+      var hidden = content.style.display === 'none';
+      content.style.display = hidden ? '' : 'none';
+      arrow.textContent = hidden ? '▾' : '▸';
+    });
+    block.appendChild(header);
+    block.appendChild(content);
+    bubble.insertBefore(block, bubble.firstChild);
+    return block;
+  }
+
+  function updateThinkingBlock(text, done) {
+    if (!text) return;
+    var block = ensureThinkingBlock();
+    if (!block) return;
+    var content = block.querySelector('.chat-panel__thinking-block-content');
+    if (content && content.textContent !== text) content.textContent = text;
+    var streaming = block.querySelector('.chat-panel__thinking-block-streaming');
+    if (streaming) streaming.style.display = done ? 'none' : '';
+  }
+
+  async function pollTaskThinking() {
+    var id = taskWatch.executionId;
+    if (!id) return;
+    try {
+      var res = await originalFetch('http://localhost:28099/qa/task/executions/' + encodeURIComponent(id));
+      var rec = await res.json();
+      var data = rec && rec.data;
+      if (!data) return;
+      var text = data.thinking || '';
+      if (!text) {
+        // 兼容：从事件记录拼接推理增量
+        for (var i = 0; i < (data.events || []).length; i += 1) {
+          var ev = data.events[i];
+          if (ev && ev.type === 'reasoning_chunk' && ev.data && ev.data.chunk) text += ev.data.chunk;
+        }
+      }
+      taskWatch.thinkingText = text;
+      var done = data.status && data.status !== 'running' && data.status !== 'cancelling';
+      updateThinkingBlock(text, done);
+      if (done) {
+        clearInterval(taskWatch.timer);
+        taskWatch.timer = null;
+        taskWatch.executionId = null;
+      }
+    } catch (e) { /* 轮询失败忽略，下次重试 */ }
+  }
+
+  function watchTaskExecution(executionId) {
+    if (!executionId) return;
+    taskWatch.executionId = executionId;
+    taskWatch.thinkingText = '';
+    if (taskWatch.timer) clearInterval(taskWatch.timer);
+    setTimeout(function () { updateThinkingBlock('（思考即将开始…）', false); }, 800);
+    taskWatch.timer = setInterval(pollTaskThinking, 1500);
+    pollTaskThinking();
+  }
+
+  // React 重绘可能冲掉注入块：守护式重注入（有数据时）
+  var thinkingGuard = new MutationObserver(function () {
+    if (!taskWatch.thinkingText) return;
+    var bubbles = document.querySelectorAll('.chat-panel__bubble-content');
+    if (bubbles.length && !bubbles[bubbles.length - 1].querySelector(':scope > .knowly-recon-thinking')) {
+      updateThinkingBlock(taskWatch.thinkingText, !taskWatch.timer);
+    }
+  });
+  thinkingGuard.observe(document.documentElement, { childList: true, subtree: true });
+
   // 供测试与高级用法：手动添加附件路径
   window.__knowlyDropShim = {
-    version: '1.1.0',
+    version: '1.2.0',
     add: function (paths) { return addPaths(Array.isArray(paths) ? paths : [paths]); },
     addKnowledgeFolders: addKnowledgeFolders,
+    watchTaskExecution: watchTaskExecution,
     files: function () { return files.slice(); },
     clear: function () { files = []; renderChips(); },
     toast: toast,
