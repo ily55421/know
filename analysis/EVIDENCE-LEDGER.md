@@ -682,4 +682,22 @@ track() 改为 if (emit) emit(type, data)（与 sseEmit 一致的空值保护）
   未提交该字段时不被渲染层的保存清空
 - CDP 真机：注入行渲染 + 读取现值 + 改动保存后 `GET /config` 一致
 
+## 35. 注入字段的界面语言适配（recon.21，O，2026-10-12）
+
+### 背景
+- recon.20 注入的「单次输出上限」只有中文；而渲染层对话框本身有 zh/en 两套文案
+  （bundle 内 `runtimeConfig:{title:"运行参数"...}` @2,106,709 与
+  `runtimeConfig:{title:"Runtime settings"...}` @2,159,690）
+
+### 实现
+- shim 1.5.0：`outputLimitLang()` 先读 `document.documentElement.lang`（实测 zh-CN），
+  兜底按对话框标题（`/运行参数/`）判定；zh/en 两套 section/label/hint 文案
+
+### 验证（CDP 真机）
+- zh 态：注入「模型输出 / 单次输出上限（tokens）/ 256-131072」
+- 把 `documentElement.lang` 置 en → 移除注入节点触发守护重注入 → 变为
+  「Model output / Max output tokens」
+- 复原 lang=zh-CN 并重注入 → 回到中文 ✓
+
+
 

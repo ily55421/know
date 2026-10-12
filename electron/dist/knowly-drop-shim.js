@@ -460,14 +460,40 @@
   // 此处注入一行「模型输出」并在点「保存」时一并提交（后端按 key 合并，与渲染层自身的 POST 互不覆盖）。
   var OUTPUT_LIMIT = { min: 256, max: 131072, def: 16384 };
   var outputLimitValue = null; // null = 本次打开尚未从后端读取
+  // 渲染层对话框本身是多语言的（bundle 内 zh/en 两套 runtimeConfig 文案），注入行随之切换
+  var OUTPUT_LIMIT_TEXT = {
+    zh: {
+      section: '模型输出',
+      label: '单次输出上限（tokens）',
+      hint: '单次回复最多生成的 token 数（含思考过程）。复杂推理题请调大（如 32768）；'
+        + '若正文为空会自动加倍重试，最高到 ' + OUTPUT_LIMIT.max + '。',
+    },
+    en: {
+      section: 'Model output',
+      label: 'Max output tokens',
+      hint: 'Maximum tokens generated per reply, including reasoning. Raise it for hard reasoning '
+        + 'tasks (e.g. 32768); an empty answer triggers an automatic retry at double the budget, '
+        + 'up to ' + OUTPUT_LIMIT.max + '.',
+    },
+  };
+
+  function outputLimitLang() {
+    var lang = (document.documentElement && document.documentElement.lang) || '';
+    if (/^zh/i.test(lang)) return 'zh';
+    if (/^en/i.test(lang)) return 'en';
+    // 兜底：按对话框标题判断
+    var h2 = document.querySelector('.knowly-runtime-config .ant-modal-title h2');
+    return h2 && /运行参数/.test(h2.textContent || '') ? 'zh' : 'en';
+  }
 
   function buildOutputLimitSection() {
+    var text = OUTPUT_LIMIT_TEXT[outputLimitLang()];
     var section = document.createElement('section');
     section.className = 'knowly-runtime-config__section knowly-recon-output-limit';
     var header = document.createElement('div');
     header.className = 'knowly-runtime-config__section-header';
     var h3 = document.createElement('h3');
-    h3.textContent = '模型输出';
+    h3.textContent = text.section;
     header.appendChild(h3);
     section.appendChild(header);
 
@@ -476,10 +502,9 @@
     var left = document.createElement('div');
     var label = document.createElement('span');
     label.className = 'knowly-runtime-config__row-label';
-    label.textContent = '单次输出上限（tokens）';
+    label.textContent = text.label;
     var hint = document.createElement('p');
-    hint.textContent = '单次回复最多生成的 token 数（含思考过程）。复杂推理题请调大（如 32768）；'
-      + '若正文为空会自动加倍重试，最高到 ' + OUTPUT_LIMIT.max + '。';
+    hint.textContent = text.hint;
     left.appendChild(label);
     left.appendChild(hint);
 
@@ -495,7 +520,7 @@
     input.max = String(OUTPUT_LIMIT.max);
     input.step = '1024';
     input.className = 'ant-input-number-input knowly-recon-output-limit__input';
-    input.setAttribute('aria-label', '单次输出上限');
+    input.setAttribute('aria-label', text.label);
     input.value = String(outputLimitValue == null ? OUTPUT_LIMIT.def : outputLimitValue);
     input.addEventListener('input', function () {
       var v = Math.floor(Number(input.value));

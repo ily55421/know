@@ -1,5 +1,21 @@
 # Changelog（重建版）
 
+## [3.13.2-recon.21] — 2026-10-12
+
+### 改进：注入的「单次输出上限」随界面语言切换
+
+- 渲染层的运行参数对话框本身有中英两套文案（bundle 内 `runtimeConfig` zh/en），recon.20 注入的
+  那一行之前只有中文 → 在英文界面下会显得突兀
+
+- 现按 `document.documentElement.lang` 判定语言（兜底看对话框标题），zh/en 两套文案；
+  字段名 `Max output tokens` / `单次输出上限（tokens）`，提示文案同步
+
+### 验证
+- CDP 真机：中文态注入「模型输出 / 单次输出上限（tokens）」；把 html lang 切到 en 后重注入为
+  「Model output / Max output tokens」；切回 zh 复原 ✓
+- 42/42 测试
+
+
 ## [3.13.2-recon.20] — 2026-10-12
 
 ### 新功能：模型单次输出上限可配置
