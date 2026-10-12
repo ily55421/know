@@ -30,7 +30,12 @@ function isPlainObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function createOpenAIClient(apiKey, baseURL, timeout, maxRetries = 2) {
+// [重建版适配] 共享 keepAlive Agent：本地网关（如 127.0.0.1:18888）连接复用，
+// 显著降低高频调用时 TCP 握手失败导致的 Connection error 概率
+const sharedHttpAgent = new http.Agent({ keepAlive: true, maxSockets: 64, timeout: 300000 });
+const sharedHttpsAgent = new https.Agent({ keepAlive: true, maxSockets: 64, timeout: 300000 });
+
+function createOpenAIClient(apiKey, baseURL, timeout, maxRetries = 3) {
   const options = {
     apiKey,
     baseURL,
@@ -38,8 +43,8 @@ function createOpenAIClient(apiKey, baseURL, timeout, maxRetries = 2) {
     maxRetries,
   };
   if (isLocalUrl(baseURL)) {
-    options.httpAgent = new http.Agent();
-    options.httpsAgent = new https.Agent();
+    options.httpAgent = sharedHttpAgent;
+    options.httpsAgent = sharedHttpsAgent;
   }
   return new OpenAI(options);
 }
@@ -54,7 +59,8 @@ function createStreamSession(stream) {
   activeStreams.set(streamId, {
     stream,
     iterator: stream[Symbol.asyncIterator](),
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    lastActivity: Date.now(),
   });
   return streamId;
 }
@@ -71,12 +77,27 @@ async function readStreamChunk(streamId) {
   }
 
   try {
-    const { value, done } = await session.iterator.next();
-    
+    // [重建版适配] 空闲超时：上游长时间无数据（长思考/网络抖动）时给出明确错误，
+    // 避免后端轮询无限挂起（此前表现为"莫名"长时间无响应后通用失败）
+    let idleTimer = null;
+    const { value, done } = await Promise.race([
+      session.iterator.next(),
+      new Promise((resolve) => {
+        idleTimer = setTimeout(() => resolve({ __idleTimeout: true }), 180000);
+      }),
+    ]).finally(() => { if (idleTimer) clearTimeout(idleTimer); });
+
+    if (value && value.__idleTimeout) {
+      activeStreams.delete(streamId);
+      return { done: true, error: '上游模型网关长时间无响应（180 秒无数据）' };
+    }
+
     if (done) {
       activeStreams.delete(streamId);
       return { done: true };
     }
+
+    session.lastActivity = Date.now();
 
     // 将 OpenAI SDK 的对象转换为纯 JSON 对象
     // 这样可以确保通过 HTTP 传递时不会丢失数据
@@ -94,9 +115,11 @@ async function readStreamChunk(streamId) {
  */
 function cleanupExpiredStreams() {
   const now = Date.now();
-  const timeout = 5 * 60 * 1000; 
+  const timeout = 10 * 60 * 1000;
   for (const [streamId, session] of activeStreams.entries()) {
-    if (now - session.createdAt > timeout) {
+    // [重建版适配] 按最后活动时间清理（长思考会话持续有 chunk，不应被误杀）
+    const last = session.lastActivity || session.createdAt;
+    if (now - last > timeout) {
       activeStreams.delete(streamId);
       log.info(`清理超时流式会话: ${streamId}`);
     }
