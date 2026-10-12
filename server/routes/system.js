@@ -23,6 +23,7 @@ function register(app, { store, registry }) {
     max_documents_per_chat: 8,           // 1..15
     chat_confidence_threshold: 55,       // 1..100
     file_search_confidence_threshold: 30, // 1..100
+    max_output_tokens: 16384,            // 256..131072 模型单次输出上限（长思考题需要更大预算）
     enable_document_ocr: true,
     ocr_store_images: true,
   };
@@ -32,6 +33,7 @@ function register(app, { store, registry }) {
     max_documents_per_chat: Math.min(15, Math.max(1, Math.floor(Number(r.max_documents_per_chat) || RUNTIME_DEFAULTS.max_documents_per_chat))),
     chat_confidence_threshold: Math.min(100, Math.max(1, Math.floor(Number(r.chat_confidence_threshold) || RUNTIME_DEFAULTS.chat_confidence_threshold))),
     file_search_confidence_threshold: Math.min(100, Math.max(1, Math.floor(Number(r.file_search_confidence_threshold) || RUNTIME_DEFAULTS.file_search_confidence_threshold))),
+    max_output_tokens: Math.min(131072, Math.max(256, Math.floor(Number(r.max_output_tokens) || RUNTIME_DEFAULTS.max_output_tokens))),
     enable_document_ocr: r.enable_document_ocr !== false,
     ocr_store_images: r.ocr_store_images !== false,
   });

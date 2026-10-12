@@ -8,6 +8,11 @@
  *      /qa/task/stream 请求体的 selected_files（与渲染层「附件」按钮产生的字符串数组同构）
  *   3. 拖拽悬浮提示与附件条 UI（antd 风格，可单个移除）
  * 百宝箱等页面自身的 drop 处理会 preventDefault，本脚本检测 defaultPrevented 后自动让位。
+ *
+ * 后续在同一注入层内追加（均不修改 bundle）：
+ *   4. 任务模式思考过程内联到对话气泡（轮询执行记录 + 守护式重注入）
+ *   5. 消息列表默认贴底（粘底策略，不打断用户上翻阅读）
+ *   6. 运行参数对话框注入「单次输出上限」（渲染层该字段硬编码缺失，长思考题需要更大预算）
  */
 (function () {
   'use strict';
@@ -449,13 +454,131 @@
   }, true);
   setInterval(function () { scrollToBottom(false); }, 2500); // 会话切换等场景兜底
 
+  // ==================== 运行参数：模型单次输出上限（可配置） ====================
+  // 渲染层的「运行参数」对话框字段是硬编码的（任务模式/智能对话/文件语义搜索/文档索引），
+  // 不含输出上限；但长思考题恰恰需要更大预算（见 3.13.2-recon.19 的空回答根因）。
+  // 此处注入一行「模型输出」并在点「保存」时一并提交（后端按 key 合并，与渲染层自身的 POST 互不覆盖）。
+  var OUTPUT_LIMIT = { min: 256, max: 131072, def: 16384 };
+  var outputLimitValue = null; // null = 本次打开尚未从后端读取
+
+  function buildOutputLimitSection() {
+    var section = document.createElement('section');
+    section.className = 'knowly-runtime-config__section knowly-recon-output-limit';
+    var header = document.createElement('div');
+    header.className = 'knowly-runtime-config__section-header';
+    var h3 = document.createElement('h3');
+    h3.textContent = '模型输出';
+    header.appendChild(h3);
+    section.appendChild(header);
+
+    var row = document.createElement('div');
+    row.className = 'knowly-runtime-config__row';
+    var left = document.createElement('div');
+    var label = document.createElement('span');
+    label.className = 'knowly-runtime-config__row-label';
+    label.textContent = '单次输出上限（tokens）';
+    var hint = document.createElement('p');
+    hint.textContent = '单次回复最多生成的 token 数（含思考过程）。复杂推理题请调大（如 32768）；'
+      + '若正文为空会自动加倍重试，最高到 ' + OUTPUT_LIMIT.max + '。';
+    left.appendChild(label);
+    left.appendChild(hint);
+
+    var ctrl = document.createElement('div');
+    ctrl.className = 'knowly-runtime-config__control';
+    var range = document.createElement('span');
+    range.textContent = OUTPUT_LIMIT.min + '-' + OUTPUT_LIMIT.max;
+    var wrap = document.createElement('div');
+    wrap.className = 'ant-input-number ant-input-number-mode-input knowly-recon-output-limit__wrap';
+    var input = document.createElement('input');
+    input.type = 'number';
+    input.min = String(OUTPUT_LIMIT.min);
+    input.max = String(OUTPUT_LIMIT.max);
+    input.step = '1024';
+    input.className = 'ant-input-number-input knowly-recon-output-limit__input';
+    input.setAttribute('aria-label', '单次输出上限');
+    input.value = String(outputLimitValue == null ? OUTPUT_LIMIT.def : outputLimitValue);
+    input.addEventListener('input', function () {
+      var v = Math.floor(Number(input.value));
+      outputLimitValue = Number.isFinite(v) && v > 0 ? v : null;
+    });
+    wrap.appendChild(input);
+    ctrl.appendChild(range);
+    ctrl.appendChild(wrap);
+    row.appendChild(left);
+    row.appendChild(ctrl);
+    section.appendChild(row);
+    return section;
+  }
+
+  function ensureOutputLimitSection() {
+    var sections = document.querySelector('.knowly-runtime-config__sections');
+    if (!sections) {
+      outputLimitValue = null; // 对话框已关闭 → 下次打开重新读取
+      return;
+    }
+    if (sections.querySelector('.knowly-recon-output-limit')) return;
+    var section = buildOutputLimitSection();
+    sections.appendChild(section);
+    if (outputLimitValue == null) {
+      originalFetch('http://localhost:28099/config')
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          var v = j && j.runtime && j.runtime.max_output_tokens;
+          if (typeof v === 'number' && v > 0) {
+            outputLimitValue = v;
+            var input = section.querySelector('.knowly-recon-output-limit__input');
+            if (input) input.value = String(v);
+          }
+        })
+        .catch(function () { /* 读取失败保留默认值 */ });
+    }
+  }
+
+  /** 点「保存」时把输出上限一并写入（后端按 key 合并，不覆盖渲染层提交的其它字段） */
+  function commitOutputLimit() {
+    var input = document.querySelector('.knowly-recon-output-limit__input');
+    if (!input) return;
+    var v = Math.floor(Number(input.value));
+    if (!Number.isFinite(v) || v <= 0) v = OUTPUT_LIMIT.def;
+    v = Math.min(OUTPUT_LIMIT.max, Math.max(OUTPUT_LIMIT.min, v));
+    input.value = String(v);
+    outputLimitValue = v;
+    originalFetch('http://localhost:28099/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ max_output_tokens: v }),
+    }).catch(function () { /* 保存失败由渲染层的提示兜底 */ });
+  }
+
+  // 捕获阶段先于 React 的冒泡处理执行，确保在对话框关闭前发出自己的写入
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    if (!t || !t.closest) return;
+    if (t.closest('.knowly-runtime-config .ant-modal-footer .ant-btn-primary')) commitOutputLimit();
+  }, true);
+
+  var runtimeGuard = new MutationObserver(function () { ensureOutputLimitSection(); });
+  runtimeGuard.observe(document.documentElement, { childList: true, subtree: true });
+  ensureOutputLimitSection();
+
+
   // 供测试与高级用法：手动添加附件路径
   window.__knowlyDropShim = {
-    version: '1.4.0',
+    version: '1.5.0',
     add: function (paths) { return addPaths(Array.isArray(paths) ? paths : [paths]); },
     addKnowledgeFolders: addKnowledgeFolders,
     watchTaskExecution: watchTaskExecution,
     scrollToBottom: function () { scrollCtl.stick = true; scrollToBottom(true); },
+    setOutputLimit: function (v) {
+      var n = Math.floor(Number(v));
+      if (Number.isFinite(n) && n > 0) {
+        outputLimitValue = Math.min(OUTPUT_LIMIT.max, Math.max(OUTPUT_LIMIT.min, n));
+        var input = document.querySelector('.knowly-recon-output-limit__input');
+        if (input) input.value = String(outputLimitValue);
+      }
+      return outputLimitValue;
+    },
+    commitOutputLimit: commitOutputLimit,
     files: function () { return files.slice(); },
     clear: function () { files = []; renderChips(); },
     toast: toast,

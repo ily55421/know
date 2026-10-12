@@ -479,6 +479,8 @@ test('运行参数契约：GET /config 内嵌 runtime 默认值，POST 扁平字
     assert.ok(rt.file_search_confidence_threshold >= 1 && rt.file_search_confidence_threshold <= 100);
     assert.equal(typeof rt.enable_document_ocr, 'boolean');
     assert.equal(typeof rt.ocr_store_images, 'boolean');
+    // 单次输出上限：默认 16384，且随 GET /config 暴露（运行参数面板注入字段消费）
+    assert.equal(rt.max_output_tokens, 16384);
 
     // 参数面板保存：扁平 body（bundle @~6,988,000）
     const saved = await json(base, 'POST', '/config', {
@@ -491,9 +493,18 @@ test('运行参数契约：GET /config 内嵌 runtime 默认值，POST 扁平字
     assert.equal(again.body.data.runtime.max_iterations, 45);
     assert.equal(again.body.data.runtime.max_documents_per_chat, 6);
     assert.equal(again.body.data.runtime.enable_document_ocr, false);
+    // 未提交的字段不被清空（注入字段与渲染层字段各自独立写入）
+    assert.equal(again.body.data.runtime.max_output_tokens, 16384);
     // 非法值被钳制
     const clamped = await json(base, 'POST', '/config', { max_documents_per_chat: 99 });
     assert.equal(clamped.body.data.runtime.max_documents_per_chat, 15);
+    // 输出上限：可写、越界钳制到 256..131072
+    const limit = await json(base, 'POST', '/config', { max_output_tokens: 32768 });
+    assert.equal(limit.body.data.runtime.max_output_tokens, 32768);
+    assert.equal((await json(base, 'GET', '/config')).body.data.runtime.max_output_tokens, 32768);
+    assert.equal((await json(base, 'POST', '/config', { max_output_tokens: 999999 })).body.data.runtime.max_output_tokens, 131072);
+    assert.equal((await json(base, 'POST', '/config', { max_output_tokens: 1 })).body.data.runtime.max_output_tokens, 256);
+    assert.equal((await json(base, 'POST', '/config', { max_output_tokens: 'abc' })).body.data.runtime.max_output_tokens, 16384);
 
     // user-status 形态（多面板消费 userStatus 字段）
     const us = await json(base, 'GET', '/user-status');
@@ -575,4 +586,79 @@ test('未实现端点返回 404 且带说明', async () => {
     const body = await res.json();
     assert.equal(body.detail, 'Not Found');
   });
+});
+
+test('输出上限解析：loadOutputLimit 读运行参数并钳制，缺省落回 16384', async () => {
+  const { loadOutputLimit, DEFAULT_OUTPUT_TOKENS, MIN_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS } =
+    require('../server/llm');
+  const mk = (config) => ({ load: (name, def) => (config === undefined ? def : config) });
+
+  assert.equal(DEFAULT_OUTPUT_TOKENS, 16384);
+  // 运行参数面板写入的位置
+  assert.equal(loadOutputLimit(mk({ runtime: { max_output_tokens: 32768 } })), 32768);
+  // 兼容顶层 / 文件直改 / 历史 max_tokens 键
+  assert.equal(loadOutputLimit(mk({ max_output_tokens: 24576 })), 24576);
+  assert.equal(loadOutputLimit(mk({ max_tokens: 8192 })), 8192);
+  // runtime 优先于顶层
+  assert.equal(loadOutputLimit(mk({ max_tokens: 8192, runtime: { max_output_tokens: 40960 } })), 40960);
+  // 缺省 / 非法 / 越界
+  assert.equal(loadOutputLimit(mk({})), DEFAULT_OUTPUT_TOKENS);
+  assert.equal(loadOutputLimit(mk({ runtime: {} })), DEFAULT_OUTPUT_TOKENS);
+  assert.equal(loadOutputLimit(mk({ runtime: { max_output_tokens: 0 } })), DEFAULT_OUTPUT_TOKENS);
+  assert.equal(loadOutputLimit(mk({ runtime: { max_output_tokens: 'abc' } })), DEFAULT_OUTPUT_TOKENS);
+  assert.equal(loadOutputLimit(mk({ runtime: { max_output_tokens: 10 } })), MIN_OUTPUT_TOKENS);
+  assert.equal(loadOutputLimit(mk({ runtime: { max_output_tokens: 10 ** 9 } })), MAX_OUTPUT_TOKENS);
+  // store 抛错时不崩，回落缺省
+  assert.equal(loadOutputLimit({ load: () => { throw new Error('boom'); } }), DEFAULT_OUTPUT_TOKENS);
+  assert.equal(loadOutputLimit(undefined), DEFAULT_OUTPUT_TOKENS);
+});
+
+test('输出上限贯通：chatStream/chatOnce 发出的 max_tokens 等于运行参数配置值', async () => {
+  const { chatStream, chatOnce } = require('../server/llm');
+  const realFetch = global.fetch;
+  const captured = [];
+  global.fetch = async (url, init) => {
+    const body = JSON.parse(init.body);
+    captured.push({ url: String(url), body });
+    if (String(url).includes('/api/openai/chat/completions')) {
+      if (body.stream) return { json: async () => ({ success: true, stream_id: 's1' }) };
+      return {
+        json: async () => ({
+          success: true,
+          data: { choices: [{ finish_reason: 'stop', message: { content: '好的' } }] },
+        }),
+      };
+    }
+    if (String(url).includes('/api/stream/read')) {
+      return {
+        json: async () => ({
+          done: true,
+          chunk: { choices: [{ delta: { content: '好的' }, finish_reason: 'stop' }] },
+        }),
+      };
+    }
+    return { json: async () => ({ success: true }) };
+  };
+
+  const mkStore = (n) => ({
+    load: (name, def) => (name === 'config'
+      ? { models: { list: [{ id: 'm', api_key: 'k', base_url: 'http://x/v1', model: 'mm' }], current: 'm' }, runtime: { max_output_tokens: n } }
+      : def),
+  });
+
+  try {
+    await chatStream(mkStore(32768), { messages: [{ role: 'user', content: 'hi' }], onDelta: () => {} });
+    const streamReq = captured.find((c) => c.body.stream === true);
+    assert.equal(streamReq.body.max_tokens, 32768, '流式请求应携带配置的输出上限');
+
+    captured.length = 0;
+    await chatOnce(mkStore(40960), { messages: [{ role: 'user', content: 'hi' }] });
+    assert.equal(captured[0].body.max_tokens, 40960, '非流式请求应携带配置的输出上限');
+
+    captured.length = 0;
+    await chatStream(mkStore(undefined), { messages: [{ role: 'user', content: 'hi' }], onDelta: () => {} });
+    assert.equal(captured.find((c) => c.body.stream === true).body.max_tokens, 16384, '未配置时回落默认 16384');
+  } finally {
+    global.fetch = realFetch;
+  }
 });

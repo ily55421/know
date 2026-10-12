@@ -648,3 +648,38 @@ track() 改为 if (emit) emit(type, data)（与 sseEmit 一致的空值保护）
 - 复现脚本 `analysis/tools/repro-hard-prompt.mjs` 曾报 thinkingLen=14828：那是把两次 attempt 的
   `thinking_content` 增量**跨尝试累加**所致（6315 + 8513），非产品缺陷
 
+## 34. 单次输出上限可配置（recon.20，O，2026-10-12）
+
+### 诉求
+「上限需要支持可配置」—— recon.19 把 16384 写成了默认值，用户要能自己调。
+
+### 现状勘察（决定实现方式）
+- 渲染层**完全没有** `max_tokens` / `max_output_tokens` 字段（全 bundle grep = 0）→ 上限只由后端决定
+- 「运行参数」对话框组件（`QEt` @6,866,462）字段**硬编码**：任务模式/智能对话/文件语义搜索/文档索引
+  四组 + 保存按钮；i18n 命名空间 `runtimeConfig.*`（bundle @2,106,709）
+- 唯一入口：本地资料学习页 →「打开参数配置」（`onOpenRuntimeConfig` 只被 `Sct`/`wct` 消费）
+- 结论：不做 bundle 补丁（沿用"不改 bundle"原则），改由注入层在对话框内追加一行
+
+### 实现
+- `server/routes/system.js`：`RUNTIME_DEFAULTS` + `clampRuntime` 增加
+  `max_output_tokens`（默认 16384，钳制 256..131072）→ 自动随 GET /config 暴露，POST 扁平字段可写
+- `server/llm.js`：新增 `loadOutputLimit(store)`，按
+  `config.runtime.max_output_tokens` → `config.max_output_tokens` → `config.max_tokens` 取值并钳制；
+  `chatOnce`/`chatStream` 的 `maxTokens` 默认改为 undefined（=取配置）；
+  截断加倍上限 `65536` → `MAX_OUTPUT_TOKENS(131072)`；上限用尽文案指向该设置项
+- `electron/dist/knowly-drop-shim.js` 1.5.0：向 `.knowly-runtime-config__sections` 追加
+  「模型输出 / 单次输出上限」一行（复用 `knowly-runtime-config__row` + `ant-input-number` 样式），
+  打开时读 GET /config，点 footer 的 `ant-btn-primary`（捕获阶段先于 React 冒泡）时 POST 写入；
+  关闭对话框时清缓存以便下次重读；MutationObserver 守护重注入
+
+### 验证
+- 42/42 测试（新增 2 个）：
+  - `loadOutputLimit`：运行参数位置/顶层/历史键优先级、缺省与非法值回落 16384、钳制到 256/131072、
+    store 抛错不崩
+  - **贯通性**：stub 掉 `global.fetch`，断言 `chatStream` 发出的流式请求体 `max_tokens == 32768`
+    （配置值），`chatOnce == 40960`，未配置 == 16384 —— 证明配置真的到达模型请求
+- `/config` 契约测试扩展：默认 16384；写 32768 回读一致；999999 → 131072；1 → 256；'abc' → 16384；
+  未提交该字段时不被渲染层的保存清空
+- CDP 真机：注入行渲染 + 读取现值 + 改动保存后 `GET /config` 一致
+
+

@@ -60,6 +60,27 @@ function normalizeLlmError(message) {
   return text || '大模型调用失败';
 }
 
+// [重建版适配] 单次输出上限：可由用户配置（运行参数面板 / config.json 的 max_output_tokens），
+// 默认 16384 —— 4096 会让"推理写满预算、正文为空"的长思考题直接没有答案。
+const DEFAULT_OUTPUT_TOKENS = 16384;
+const MIN_OUTPUT_TOKENS = 256;
+const MAX_OUTPUT_TOKENS = 131072;
+
+/** 读取用户配置的输出上限（运行参数面板写入 config.runtime.max_output_tokens；亦支持顶层/文件直改） */
+function loadOutputLimit(store) {
+  let raw;
+  try {
+    const config = store?.load?.('config', {}) || {};
+    raw = config?.runtime?.max_output_tokens ?? config?.max_output_tokens ?? config?.max_tokens;
+  } catch {
+    raw = undefined;
+  }
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_OUTPUT_TOKENS;
+  return Math.min(MAX_OUTPUT_TOKENS, Math.max(MIN_OUTPUT_TOKENS, n));
+}
+
+
 /** 读取模型配置（渲染层通过 POST /config 写入；与原版一样由后端持有 api_key/base_url）。 */
 function loadModelConfig(store) {
   const config = store.load('config', {});
@@ -74,13 +95,14 @@ function loadModelConfig(store) {
   };
 }
 
-async function chatOnce(store, { messages, temperature = 0.7, maxTokens = 16384, enableThinking = true }) {
+async function chatOnce(store, { messages, temperature = 0.7, maxTokens, enableThinking = true }) {
   const cfg = loadModelConfig(store);
   if (!cfg.api_key || !cfg.base_url || !cfg.model) {
     const error = new Error('未配置大模型：请在应用设置中配置 API Key、Base URL 与模型名');
     error.code = 'LLM_NOT_CONFIGURED';
     throw error;
   }
+  const limit = Number.isFinite(maxTokens) && maxTokens > 0 ? Math.floor(maxTokens) : loadOutputLimit(store);
   const payload = await proxyPost('/api/openai/chat/completions', {
     api_key: cfg.api_key,
     base_url: cfg.base_url,
@@ -88,7 +110,7 @@ async function chatOnce(store, { messages, temperature = 0.7, maxTokens = 16384,
     messages,
     stream: false,
     temperature,
-    max_tokens: maxTokens,
+    max_tokens: limit,
     // 思考链：默认向网关请求 reasoning（兼容 OpenAI 格式的端点会忽略未知字段）
     enable_thinking: enableThinking,
   });
@@ -101,8 +123,8 @@ async function chatOnce(store, { messages, temperature = 0.7, maxTokens = 16384,
   const finishReason = choice?.finish_reason || null;
   const content = choice?.message?.content || '';
   // [重建版适配] 推理模型可能被 max_tokens 截断（推理耗尽预算、正文为空）→ 加倍上限重试一次
-  if (finishReason === 'length' && !String(content).trim() && maxTokens < 65536) {
-    return chatOnce(store, { messages, temperature, maxTokens: maxTokens * 2, enableThinking });
+  if (finishReason === 'length' && !String(content).trim() && limit < MAX_OUTPUT_TOKENS) {
+    return chatOnce(store, { messages, temperature, maxTokens: Math.min(MAX_OUTPUT_TOKENS, limit * 2), enableThinking });
   }
   return {
     content,
@@ -121,7 +143,7 @@ async function chatOnce(store, { messages, temperature = 0.7, maxTokens = 16384,
  * - 读流（/api/stream/read）不重试（会话失效重试无意义）；
  * - 错误消息统一归一化，渲染层可给出指引性文案而非"莫名失败"。
  */
-async function chatStream(store, { messages, temperature = 0.7, maxTokens = 16384, onDelta, signal, enableThinking = true }) {
+async function chatStream(store, { messages, temperature = 0.7, maxTokens, onDelta, signal, enableThinking = true }) {
   const cfg = loadModelConfig(store);
   if (!cfg.api_key || !cfg.base_url || !cfg.model) {
     const error = new Error('未配置大模型：请在应用设置中配置 API Key、Base URL 与模型名');
@@ -131,7 +153,10 @@ async function chatStream(store, { messages, temperature = 0.7, maxTokens = 1638
 
   const MAX_ATTEMPTS = 3;
   let lastError = null;
-  let budget = maxTokens; // 长度截断时自动加倍
+  // 起始预算取用户配置（运行参数面板可改），长度截断时自动加倍
+  let budget = Number.isFinite(maxTokens) && maxTokens > 0
+    ? Math.min(MAX_OUTPUT_TOKENS, Math.floor(maxTokens))
+    : loadOutputLimit(store);
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     let full = '';
@@ -189,12 +214,12 @@ async function chatStream(store, { messages, temperature = 0.7, maxTokens = 1638
 
       // [重建版适配] 推理模型被 max_tokens 截断（推理耗尽预算、正文为空）→ 加倍上限重试
       if (!retryNeeded && finishReason === 'length' && !full.trim()) {
-        if (attempt < MAX_ATTEMPTS && budget < 65536) {
-          budget *= 2;
+        if (attempt < MAX_ATTEMPTS && budget < MAX_OUTPUT_TOKENS) {
+          budget = Math.min(MAX_OUTPUT_TOKENS, budget * 2);
           lastError = new Error('模型输出达到长度上限，已自动提高上限重试');
           retryNeeded = true;
         } else {
-          throw new Error('模型推理超出长度上限，未能产出正文（请提高模型最大输出长度或简化问题）');
+          throw new Error(`模型推理超出长度上限（${budget} tokens），未能产出正文。可在「运行参数 → 单次输出上限」中调大，或简化问题`);
         }
       }
 
@@ -216,4 +241,14 @@ async function chatStream(store, { messages, temperature = 0.7, maxTokens = 1638
   throw new Error(normalizeLlmError(lastError?.message || '大模型流式调用失败'));
 }
 
-module.exports = { chatOnce, chatStream, loadModelConfig, proxyPost, PROXY_BASE };
+module.exports = {
+  chatOnce,
+  chatStream,
+  loadModelConfig,
+  loadOutputLimit,
+  proxyPost,
+  PROXY_BASE,
+  DEFAULT_OUTPUT_TOKENS,
+  MIN_OUTPUT_TOKENS,
+  MAX_OUTPUT_TOKENS,
+};
