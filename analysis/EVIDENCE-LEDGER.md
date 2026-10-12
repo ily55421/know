@@ -593,3 +593,58 @@ track() 改为 if (emit) emit(type, data)（与 sseEmit 一致的空值保护）
   「思考中…」标记流式期间显示、完成后收敛；可点击折叠 ✓
 - 40/40 测试
 - 说明：中断保留已由流式下发机制保证（任意时刻上游中断，已输出内容都会留在消息里）
+
+## 33. 复杂推理"中断且没回答"= max_tokens 截断 + 消息列表粘底（recon.19，O，2026-10-12）
+
+### 诉求
+「还是中断了 没有回答出问题 且默认应该放在最下方」+ 用户原题（糖果抽屉组合题）
+
+### 根因（可复现的最小证据）
+- 用用户原题直接打 `/qa/chat/stream`：
+  `{ ms: 30217, err: null, done: "", thinkingLen: 6315, contentLen: 0 }`
+  —— 推理写满 `max_tokens=4096` 后 `finish_reason=length`，**正文 0 字**。
+  渲染层拿到空正文 → 显示"中断了/没有回答"。**不是网络中断**（err=null）。
+- 探测本机网关：8192 / 16384 / 32768 均受理 → 有提高空间。
+
+### 修复
+- `server/llm.js`
+  - 默认 `maxTokens` 4096 → **16384**（`chatOnce` + `chatStream`）
+  - `chatStream` 捕获 `choice.finish_reason`；当 `finish_reason==='length'` 且正文为空时
+    `budget *= 2` 重试整个流（16k→32k→64k 封顶），重试前 `stream/cancel` 旧会话；
+    仍不足则抛出明确文案（不再静默空白）
+  - 每次 attempt 的 `full`/`reasoning` 在循环内重置 → 返回值不含失败尝试的内容
+- `electron/src/api-proxy-handler.js`：chat 客户端超时 120s → **300s**（长思考首字等待）
+
+### 消息列表默认贴底（shim 1.4.0）
+- 目标元素 `.chat-panel__msg-list`（CDP 实测存在）
+- **粘底**：默认 `stick=true` 跟随；滚动事件里 `dist>60px` → `stick=false`（用户在上翻阅读）；
+  回到底部附近 → 自动恢复；会话滚动容器被换掉（会话切换/首次挂载）→ 强制置底 + 重置 stick；
+  回车发送后回到最新；2.5s 兜底 interval 也遵守 stick
+- 先前的"暂停 4s 再抢回"会在用户阅读时把视口拽走，故改为粘底
+
+### 工程化（新增，可复用）
+- `scripts/repack-asar.cjs`：asar **原地单文件替换**
+  - 实测发现 electron-builder 对相同内容做了**去重**（1615 个 entry 共享 offset，如渲染层 woff 与
+    katex 字体）→ 因此：(1) 目标文件必须独占 offset（否则写坏"别名"）；(2) 只平移 offset **严格大于**
+    目标 offset 的 entry
+  - 校验链：数据区覆盖性（无空洞、铺满 EOF）→ 平移样本内容比对 → 官方 `@electron/asar` 读取自校验
+    → 通过才 `rename` 覆盖（旧档 `.bak`，失败即回滚）
+- `scripts/verify-asar-sync.cjs`：asar 内源码 vs 工作区**逐字节比对** → 本次 **178/178 一致**
+- `scripts/restart-recon.ps1`：按 `ExecutablePath` 前缀只停/起 `E:\data\Knowly` 下进程（原版不受影响）
+
+### 验证（CDP 真机 · 用户原提示词，任务模式）
+- 轮询观测：`ans=233(用户气泡) → 思考 30→741→1525→2480→2905 → 气泡 3 / ans=473`
+- **A 完整作答 ✓** 正文 473 字，末句「答案：最少取出 29 个糖果。」
+  （独立验算：最坏取法 = 全取圆形苹果7+圆形桃子9+西瓜12 = 28 仍不满足 → 答案 28+1=**29**，与模型一致）
+- **B 思考内联 ✓** 气泡内「深度思考」2905 字（任务模式取后端最终记录，无重复拼接）
+- **C 粘底 ✓** 距底 0px；手动上翻后 4.2s 仍在顶部（scrollTop=0，未被拽回）；强制置底 API 生效
+- 40/40 测试
+- 已确认 shim 1.4.0 与 llm.js 修复**均已打进 app.asar**（原地替换后 178/178 一致）
+
+### 已知限制（诚实声明）
+- 推理若**仍**超 64k token 上限 → 明确报错，非静默空白
+- 触发"加倍重试"时，**问答模式**思考块会把重试前的半截推理一并显示（渲染层无推理重置事件，
+  且缓冲区/静默流会把主路径的"实时思考"退化掉，故不做）；**任务模式不受影响**
+- 复现脚本 `analysis/tools/repro-hard-prompt.mjs` 曾报 thinkingLen=14828：那是把两次 attempt 的
+  `thinking_content` 增量**跨尝试累加**所致（6315 + 8513），非产品缺陷
+

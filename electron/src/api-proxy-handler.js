@@ -186,7 +186,7 @@ app.post('/api/openai/chat/completions', async (req, res) => {
   };
 
   try {
-    const client = createOpenAIClient(api_key, base_url, 120000);
+    const client = createOpenAIClient(api_key, base_url, 300000);
 
     const payload = {
       model: model,

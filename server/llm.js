@@ -74,7 +74,7 @@ function loadModelConfig(store) {
   };
 }
 
-async function chatOnce(store, { messages, temperature = 0.7, maxTokens = 4096, enableThinking = true }) {
+async function chatOnce(store, { messages, temperature = 0.7, maxTokens = 16384, enableThinking = true }) {
   const cfg = loadModelConfig(store);
   if (!cfg.api_key || !cfg.base_url || !cfg.model) {
     const error = new Error('未配置大模型：请在应用设置中配置 API Key、Base URL 与模型名');
@@ -98,9 +98,16 @@ async function chatOnce(store, { messages, temperature = 0.7, maxTokens = 4096, 
     throw error;
   }
   const choice = payload.data?.choices?.[0];
+  const finishReason = choice?.finish_reason || null;
+  const content = choice?.message?.content || '';
+  // [重建版适配] 推理模型可能被 max_tokens 截断（推理耗尽预算、正文为空）→ 加倍上限重试一次
+  if (finishReason === 'length' && !String(content).trim() && maxTokens < 65536) {
+    return chatOnce(store, { messages, temperature, maxTokens: maxTokens * 2, enableThinking });
+  }
   return {
-    content: choice?.message?.content || '',
+    content,
     reasoning: choice?.message?.reasoning_content || choice?.message?.reasoning || '',
+    finishReason,
   };
 }
 
@@ -114,7 +121,7 @@ async function chatOnce(store, { messages, temperature = 0.7, maxTokens = 4096, 
  * - 读流（/api/stream/read）不重试（会话失效重试无意义）；
  * - 错误消息统一归一化，渲染层可给出指引性文案而非"莫名失败"。
  */
-async function chatStream(store, { messages, temperature = 0.7, maxTokens = 4096, onDelta, signal, enableThinking = true }) {
+async function chatStream(store, { messages, temperature = 0.7, maxTokens = 16384, onDelta, signal, enableThinking = true }) {
   const cfg = loadModelConfig(store);
   if (!cfg.api_key || !cfg.base_url || !cfg.model) {
     const error = new Error('未配置大模型：请在应用设置中配置 API Key、Base URL 与模型名');
@@ -124,6 +131,7 @@ async function chatStream(store, { messages, temperature = 0.7, maxTokens = 4096
 
   const MAX_ATTEMPTS = 3;
   let lastError = null;
+  let budget = maxTokens; // 长度截断时自动加倍
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     let full = '';
@@ -131,6 +139,7 @@ async function chatStream(store, { messages, temperature = 0.7, maxTokens = 4096
     let produced = false;
     let streamId = null;
     let retryNeeded = false;
+    let finishReason = null;
 
     try {
       const started = await proxyPost('/api/openai/chat/completions', {
@@ -140,7 +149,7 @@ async function chatStream(store, { messages, temperature = 0.7, maxTokens = 4096
         messages,
         stream: true,
         temperature,
-        max_tokens: maxTokens,
+        max_tokens: budget,
         enable_thinking: enableThinking,
       }, { retry: true, attempts: 2 });
       if (!started?.success || !started.stream_id) {
@@ -158,9 +167,11 @@ async function chatStream(store, { messages, temperature = 0.7, maxTokens = 4096
           }
           throw new Error(step.error);
         }
-        if (step?.done) return { content: full, reasoning };
+        if (step?.done) break;
         const chunk = step?.chunk;
-        const delta = chunk?.choices?.[0]?.delta || {};
+        const choice = chunk?.choices?.[0] || {};
+        const delta = choice.delta || {};
+        if (choice.finish_reason) finishReason = choice.finish_reason;
         const reasoningPiece = delta.reasoning_content || delta.reasoning || '';
         const contentPiece = delta.content || '';
         if (reasoningPiece) {
@@ -175,7 +186,19 @@ async function chatStream(store, { messages, temperature = 0.7, maxTokens = 4096
         }
       }
       if (signal?.aborted) return { content: full, reasoning };
-      if (!retryNeeded) return { content: full, reasoning };
+
+      // [重建版适配] 推理模型被 max_tokens 截断（推理耗尽预算、正文为空）→ 加倍上限重试
+      if (!retryNeeded && finishReason === 'length' && !full.trim()) {
+        if (attempt < MAX_ATTEMPTS && budget < 65536) {
+          budget *= 2;
+          lastError = new Error('模型输出达到长度上限，已自动提高上限重试');
+          retryNeeded = true;
+        } else {
+          throw new Error('模型推理超出长度上限，未能产出正文（请提高模型最大输出长度或简化问题）');
+        }
+      }
+
+      if (!retryNeeded) return { content: full, reasoning, finishReason };
     } catch (error) {
       lastError = error;
       if (produced || signal?.aborted || attempt >= MAX_ATTEMPTS) {

@@ -410,12 +410,52 @@
   });
   thinkingGuard.observe(document.documentElement, { childList: true, subtree: true });
 
+  // ==================== 消息列表默认滚动到最新 ====================
+  // 用户反馈：进入会话/新消息时应默认停在最下方（最新内容），且不能打断用户上翻阅读。
+  // 采用「粘底」策略：默认跟随最新内容；用户主动上翻即停止跟随，回到底部附近自动恢复。
+  var STICK_TOL = 60; // 距底部阈值(px)：小于该值视为"仍在底部"
+  var scrollCtl = { stick: true, lastList: null };
+  function msgListEl() { return document.querySelector('.chat-panel__msg-list'); }
+  function nearBottom(el, tol) { return (el.scrollHeight - el.scrollTop - el.clientHeight) <= tol; }
+  function scrollToBottom(force) {
+    var el = msgListEl();
+    if (!el) return;
+    if (!force && !scrollCtl.stick) return; // 用户正在上翻阅读 → 不抢滚动条
+    el.scrollTop = el.scrollHeight;
+  }
+  var msgObserver = new MutationObserver(function () {
+    var el = msgListEl();
+    if (el && el !== scrollCtl.lastList) {
+      // 会话切换/首次挂载（滚动容器被换掉）→ 重置粘底并强制置底
+      scrollCtl.lastList = el;
+      scrollCtl.stick = true;
+      scrollToBottom(true);
+      return;
+    }
+    scrollToBottom(false);
+  });
+  msgObserver.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+  document.addEventListener('scroll', function (e) {
+    var el = e.target;
+    if (!el || !el.classList || !el.classList.contains('chat-panel__msg-list')) return;
+    scrollCtl.stick = nearBottom(el, STICK_TOL);
+  }, true);
+  // 发送新消息（回车）→ 回到最新，重新开始跟随
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey && e.target && e.target.tagName === 'TEXTAREA') {
+      scrollCtl.stick = true;
+      setTimeout(function () { scrollToBottom(true); }, 60);
+    }
+  }, true);
+  setInterval(function () { scrollToBottom(false); }, 2500); // 会话切换等场景兜底
+
   // 供测试与高级用法：手动添加附件路径
   window.__knowlyDropShim = {
-    version: '1.2.0',
+    version: '1.4.0',
     add: function (paths) { return addPaths(Array.isArray(paths) ? paths : [paths]); },
     addKnowledgeFolders: addKnowledgeFolders,
     watchTaskExecution: watchTaskExecution,
+    scrollToBottom: function () { scrollCtl.stick = true; scrollToBottom(true); },
     files: function () { return files.slice(); },
     clear: function () { files = []; renderChips(); },
     toast: toast,
